@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <math.h>
 #include <math_functions.h>
 
 //eror handling stuff - copy from cuda by example book
@@ -16,6 +17,11 @@
 #define PI 3.141592654
 
 #define THREAD_COUNT (MAX_RAD - MIN_RAD)
+
+struct gradient {
+	float *phi;
+	float *abs;
+};
 
 // TODO: change to polar coordinates
 texture<float, 2> x_component;
@@ -98,25 +104,26 @@ __global__ void hough_transform(int16_t *d, int *result) {
  * Gets the gradient
  *
  **/
-int16_t *get_sobel(int width, int height, uint8_t *img)
+gradient get_sobel(int width, int height, uint8_t *img)
 {
-    int16_t *sobel;
+    gradient sobel;
     int x, y;
 
-    sobel = (int16_t *) malloc(width * height * 4 * sizeof(int16_t));
+	sobel.phi = (float *) malloc(width * height * sizeof(float));
+    sobel.abs = (float *) malloc(width * height * sizeof(float));
 
     for (x = 0; x < width; x++) {
-        sobel[x * 2] = 0;
-        sobel[x * 2 + 1] = 0;
-        sobel[(width * (height - 1) + x) * 2] = 0;
-        sobel[(width * (height - 1) + x) * 2 + 1] = 0;
+        sobel.phi[x] = 0;
+        sobel.abs[x] = 0;
+        sobel.phi[width * (height - 1) + x] = 0;
+        sobel.abs[width * (height - 1) + x] = 0;
     }
 
     for (y = 0; y < height; y++) {
-        sobel[(width * y) * 2] = 0;
-        sobel[(width * y) * 2 + 1] = 0;
-        sobel[(width * y + height - 1) * 2] = 0;
-        sobel[(width * y + height - 1) * 2 + 1] = 0;
+        sobel.phi[width * y] = 0;
+        sobel.abs[width * y] = 0;
+        sobel.phi[width * y + width - 1] = 0;
+        sobel.abs[width * y + width - 1] = 0;
     }
 
     for (x = 1; x < width - 1; x++) {
@@ -124,7 +131,7 @@ int16_t *get_sobel(int width, int height, uint8_t *img)
                 ml = img[x - 1], mm = img[x], mr = img[x + 1],
                 bl = img[width + x - 1], bm = img[width + x], br = img[width + x + 1];
 
-        for (y = 1; y < width - 1; y++) {
+        for (y = 1; y < height - 1; y++) {
             tl = ml; tm = mm; tr = mr;
             ml = bl; mm = bm; mr = br;
 
@@ -135,8 +142,8 @@ int16_t *get_sobel(int width, int height, uint8_t *img)
             int hori = (int)tl + 2 * (int)ml + (int)bl - (int)tr - 2 * (int)mr - (int)br,
                 vert = (int)tl + 2 * (int)tm + (int)tr - (int)bl - 2 * (int)bm - (int)br;
 
-            sobel[(width * y + x) * 2] = hori;
-            sobel[(width * y + x) * 2 + 1] = vert;
+            sobel.phi[width * y + x] = atan2(vert, hori);
+            sobel.abs[width * y + x] = sqrt(hori* hori + vert * vert);
         }
     }
 
@@ -224,7 +231,8 @@ int main(int argc, char *argv[]) {
     
 	
 	uint8_t *cuda_mem;
-	int16_t *sobel;
+	gradient sobel;
+	
 	
 	// ------------ GPU ------------ //
     HANDLE_ERROR(cudaMalloc(&cuda_mem, img_w * img_h * 4));
@@ -248,17 +256,17 @@ int main(int argc, char *argv[]) {
 	// ------------ GPU ------------ //
 	// copy to (texture) memory
 	int16_t *sobel_cuda;
-    HANDLE_ERROR(cudaMalloc(&sobel_cuda, img_w * img_h * 2 * sizeof(int16_t)));
-    HANDLE_ERROR(cudaMemcpy(sobel_cuda, sobel, img_w * img_h * 2 * sizeof(int16_t), cudaMemcpyHostToDevice));
+    //HANDLE_ERROR(cudaMalloc(&sobel_cuda, img_w * img_h * 2 * sizeof(int16_t)));
+    //HANDLE_ERROR(cudaMemcpy(sobel_cuda, sobel, img_w * img_h * 2 * sizeof(int16_t), cudaMemcpyHostToDevice));
 	
     {
         FILE *file = fopen("sobel.ppm", "w");
         fprintf(file, "P6\n%d %d\n255\n", img_w, img_h);
         int p;
         for (p = 0; p < img_w * img_h; p++) {
-            fputc((sobel[p * 2] >> 1) + 128, file);
+			fputc(((int16_t) (sobel.abs[p] * cos(sobel.phi[p])) >> 1) + 128, file);
             fputc(0, file);
-            fputc((sobel[p * 2 + 1] >> 1) + 128, file);
+			fputc(((int16_t) (sobel.abs[p] * sin(sobel.phi[p])) >> 1) + 128, file);
         }
         fclose(file);
     }
@@ -281,7 +289,7 @@ int main(int argc, char *argv[]) {
 	HANDLE_ERROR(cudaMalloc(&hough_cuda, img_w * img_h * sizeof(int)));
 	HANDLE_ERROR(cudaMemset(hough_cuda, 0, img_w * img_h * sizeof(int)));
 	
-	hough_transform<<<grid, threads>>>(sobel_cuda, hough_cuda);
+	//hough_transform<<<grid, threads>>>(sobel_cuda, hough_cuda);
 	
 	HANDLE_ERROR(cudaMemcpy(hough_d, hough_cuda, img_w * img_h * sizeof(int), cudaMemcpyDeviceToHost));
 	
