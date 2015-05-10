@@ -1,0 +1,7 @@
+cuda1
+*.o
+*.pgm
+*.png
+*.ppm
+*.gif
+.DS_STORE
