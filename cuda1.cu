@@ -7,6 +7,7 @@
 //eror handling stuff - copy from cuda by example book
 #include "common/cuda_error.h"
 
+/****** PARAMETERS ********/
 #define MARGIN 20
 // needs to be a power of 2 as well
 #define STEP_SIZE 2
@@ -24,11 +25,9 @@ struct gradient {
 	float *abs;
 };
 
-
 // resides on the gpu
 texture<float, cudaTextureType2D> phi_tex;
 texture<float, cudaTextureType2D> abs_tex;
->>>>>>> 6491c15... Faster Version - Reduction not working properly
 
 /**
  * CUDA Kernels.
@@ -75,7 +74,7 @@ int blockReduceSum(int val) {
 
 __global__ void hough_transform(int *result) {
 	
-	__shared__ int radius_acc[32];
+	//__shared__ int radius_acc[32];
 
 	float dx, dy;
 	int radius_index = threadIdx.x;
@@ -83,8 +82,7 @@ __global__ void hough_transform(int *result) {
 	int x = MARGIN + blockIdx.x;
 	int y = MARGIN + blockIdx.y;
 	int width = MARGIN + gridDim.x;
-	int lane = threadIdx.x % WARP_SIZE;
-	int wid = threadIdx.x / WARP_SIZE; 
+
 	
 	int local_acc = int(0);
 	
@@ -2208,7 +2206,6 @@ __global__ void hough_transform(int *result) {
 		float grad = PI + tex2D(phi_tex, x + dx, y + dy) - 5.052728184523598;
 		if (-PI / 12.0 < grad && grad < PI / 12.0)
 			local_acc++;
->>>>>>> 6491c15... Faster Version - Reduction not working properly
 	}
 
 
@@ -2221,13 +2218,6 @@ __global__ void hough_transform(int *result) {
 		if (-PI / 12.0 < grad && grad < PI / 12.0)
 			local_acc++;
 	}
-<<<<<<< HEAD
-	
-	// this is the real shit...
-	if (radius_index == 0) 
-		result[x + y * width] = radius_acc[0];
-=======
->>>>>>> 6491c15... Faster Version - Reduction not working properly
 
 
 
@@ -2877,8 +2867,7 @@ int main(int argc, char *argv[]) {
     
 	
 	uint8_t *cuda_mem;
-	gradient sobel;
-	
+
 	
 	// ------------ GPU ------------ //
     HANDLE_ERROR(cudaMalloc(&cuda_mem, img_w * img_h * 4));
@@ -2897,13 +2886,7 @@ int main(int argc, char *argv[]) {
 	uint8_t *blured = get_gaussian_blur(img_w, img_h, img_d);
 	
 	// sobel
-	sobel = get_sobel(img_w, img_h, blured);
-		
-	// ------------ GPU ------------ //
-	// copy to (texture) memory
-	int16_t *sobel_cuda;
-    //HANDLE_ERROR(cudaMalloc(&sobel_cuda, img_w * img_h * 2 * sizeof(int16_t)));
-    //HANDLE_ERROR(cudaMemcpy(sobel_cuda, sobel, img_w * img_h * 2 * sizeof(int16_t), cudaMemcpyHostToDevice));
+	gradient sobel = get_sobel(img_w, img_h, blured);
 	
     {
         FILE *file = fopen("sobel.ppm", "w");
@@ -2918,10 +2901,10 @@ int main(int argc, char *argv[]) {
     }
 	
 	
+	// ------------ GPU ------------ //
 	// hough transform
 	// performance metrics
 	
-
 	// copy to (texture) memory
 	float *gradient_phi, *gradient_abs;
 	size_t pitch;
@@ -2932,20 +2915,23 @@ int main(int argc, char *argv[]) {
 	HANDLE_ERROR(cudaBindTexture2D(NULL, phi_tex, gradient_phi, desc, img_w, img_h, pitch));
     
 	
-	dim3 grid (img_w - MARGIN, img_h - MARGIN);
-	dim3 threads (THREAD_COUNT/STEP_SIZE);
+    HANDLE_ERROR(cudaMallocPitch(&gradient_abs, &pitch, img_w * sizeof(float), img_h));
+    HANDLE_ERROR(cudaMemcpy2D(gradient_abs, pitch, sobel.abs, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaBindTexture2D(NULL, abs_tex, gradient_abs, desc, img_w, img_h, pitch));
 	
 	cudaEventRecord(start);
 	
-	//cudaBindTexture2D(NULL, x_component, );
-	
+	// result mem
 	int* hough_d = (int *) malloc(img_w * img_h * sizeof(int));
 	int* hough_cuda;
 	
 	HANDLE_ERROR(cudaMalloc(&hough_cuda, img_w * img_h * sizeof(int)));
 	HANDLE_ERROR(cudaMemset(hough_cuda, 0, img_w * img_h * sizeof(int)));
 	
-	//hough_transform<<<grid, threads>>>(sobel_cuda, hough_cuda);
+	dim3 grid (img_w - MARGIN, img_h - MARGIN);
+	dim3 threads (THREAD_COUNT/STEP_SIZE);
+	
+	hough_transform<<<grid, threads>>>(hough_cuda);
 	
 	HANDLE_ERROR(cudaMemcpy(hough_d, hough_cuda, img_w * img_h * sizeof(int), cudaMemcpyDeviceToHost));
 	
@@ -2954,6 +2940,16 @@ int main(int argc, char *argv[]) {
 	float elapsed_time = 0;
 	
 	cudaEventElapsedTime(&elapsed_time, start, stop);
+	
+	/* Clean up */
+	cudaUnbindTexture(phi_tex);
+	cudaUnbindTexture(abs_tex);
+
+	cudaFree(gradient_phi);
+	cudaFree(gradient_abs);
+	cudaFree(hough_cuda);
+	
+	
 	printf("Took %f ms to compute Hough-Transform\n", elapsed_time);
 	
     {
@@ -2967,23 +2963,7 @@ int main(int argc, char *argv[]) {
         fclose(file);
     }
 	
-	cudaUnbindTexture(x_component);
-	cudaUnbindTexture(y_component);
-	
-	// write gaussian to file
-	/*
-    {
-        FILE *file = fopen("blur.pgm", "w");
-        fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
-        int p;
-        for (p = 0; p < img_w * img_h; p++)
-            fputc(blured[p], file);
-        fclose(file);
-    }
-	*/
-	
-	// free mem
-	cudaFree(sobel_cuda);
 
+	
     return 0;
 }
