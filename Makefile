@@ -20,8 +20,27 @@ test: $(PROG)
 $(PROG): $(OBJECTS)
 	$(NVCC) `pkg-config --libs gdk-pixbuf-2.0` -lm -o $(PROG) $(OBJECTS)
 
-%.o: %.cu
-	$(NVCC) $(CFLAGS)  -c -o $@ $< #--keep
+
+%.o: %.cu #device arch needed for __warp reduce
+	$(NVCC) $(CFLAGS)  -c -o $@ $<   -arch=sm_30 #--keep
 
 clean:
 	rm -f $(PROG) *.o *.ppm *.pgm *.gpu *.ptx *.i *.ii *.stub.c *.fatbin* *.hash *.cudafe* *.cubin *.module_id
+
+########################################################################
+#							#                                          #
+# sm_20						#	Basic features                         #
+#							#                                          #
+#							#	+ Fermi support                        # 
+#							#                                          #
+########################################################################	
+#							#	+ Kepler support					   #
+# sm_30 and sm_32			#										   #
+#							#	+ Unified memory programming		   #
+########################################################################
+# sm_35						#	+ Dynamic parallelism support		   #
+# sm_50, sm_52, and sm_53	#	+ Maxwell support					   #
+########################################################################
+
+# Read more at: http://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html#ixzz3ZmqYiS1l 
+# Follow us: @GPUComputing on Twitter | NVIDIA on Facebook
