@@ -2,7 +2,7 @@
 
 PROG = convolve
 TESTFILE = test.gif
-OBJECTS = main.o cu_convolve.co cu_pixel.co cu_reduction.co
+OBJECTS = main.o convolve.co pixel.co reduction.co hough.co
 
 all: $(PROG)
 
@@ -16,7 +16,8 @@ $(PROG): $(OBJECTS)
 	gcc -c -g -o $@ $< `pkg-config --cflags gdk-pixbuf-2.0` -I/opt/cuda/include/
 
 %.co: %.cu
-	nvcc -c -G -o $@ $<
+	nvcc -c -arch=sm_30 -o $@ $<
+#	nvcc -c -G -arch=sm_30 -o $@ $<
 
 clean:
 	rm -f $(PROG) *.o *.co *.ppm *.pgm

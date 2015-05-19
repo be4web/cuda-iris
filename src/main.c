@@ -5,9 +5,9 @@
 #include <cuda_runtime.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
-#include "cu_pixel.h"
-#include "cu_convolve.h"
-#include "cu_reduction.h"
+#include "pixel.h"
+#include "convolve.h"
+#include "reduction.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,12 +33,18 @@ int main(int argc, char *argv[])
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
     int *histo = malloc(sizeof(int) * 256);
-    void *gm_img, *gm_sobel_h, *gm_sobel_v, *gm_tmp;
+    void *gm_img, *gm_sobel_h, *gm_sobel_v, *gm_sobel_1, *gm_sobel_2, *gm_tmp, *gm_sobel_abs, *gm_sobel_phi;
+    size_t sobel_pitch;
 
     cudaMalloc(&gm_img, img_w * img_h);
-    cudaMalloc(&gm_sobel_h, img_w * img_h * 2);
-    cudaMalloc(&gm_sobel_v, img_w * img_h * 2);
+    cudaMalloc(&gm_sobel_h, img_w * img_h * 4);
+    cudaMalloc(&gm_sobel_v, img_w * img_h * 4);
+    cudaMalloc(&gm_sobel_1, img_w * img_h * 4);
+    cudaMalloc(&gm_sobel_2, img_w * img_h * 4);
     cudaMalloc(&gm_tmp, img_w * img_h * 4);
+
+    cudaMallocPitch(&gm_sobel_abs, &sobel_pitch, img_w * sizeof(float), img_h);
+    cudaMallocPitch(&gm_sobel_phi, &sobel_pitch, img_w * sizeof(float), img_h);
 
     cudaMemcpy(gm_tmp, img_d, img_w * img_h * 4, cudaMemcpyHostToDevice);
 
@@ -54,12 +60,12 @@ int main(int argc, char *argv[])
         cdf = 0;
         for (i = 0; i < 256; i++)
             tmp[i] = cdf += histo[i];
-        printf("sub:\n");
+        //printf("sub:\n");
         for (i = 0; i < 256; i++) {
             sub[i] = tmp[i] * 255 / cdf;
-            printf("%d ", sub[i]);
+            //printf("%d ", sub[i]);
         }
-        printf("\n\n");
+        //printf("\n\n");
         cu_pixel_substitute(img_w, img_h, gm_img, gm_tmp, sub);
 
         cudaMemcpy(gray_d, gm_tmp, img_w * img_h, cudaMemcpyDeviceToHost);
@@ -87,8 +93,22 @@ int main(int argc, char *argv[])
     cudaMemcpy(sobel_h, gm_sobel_h, img_w * img_h * 2, cudaMemcpyDeviceToHost);
     cudaMemcpy(sobel_v, gm_sobel_v, img_w * img_h * 2, cudaMemcpyDeviceToHost);
 
+    cu_cart_to_polar(img_w, img_h, gm_sobel_h, gm_sobel_v, gm_sobel_1, gm_sobel_2);
+
+    cudaMemcpy2D(gm_sobel_abs, sobel_pitch, gm_sobel_1, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+    cudaMemcpy2D(gm_sobel_phi, sobel_pitch, gm_sobel_2, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+
+    cu_hough(img_w, img_h, sobel_pitch, gm_sobel_abs, gm_sobel_phi, gm_tmp);
+
+    int *hough_d;
+    hough_d = malloc(img_w * img_h * 4);
+
+    cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+    printf("cudaMemcpy error: %s\n", cudaGetErrorString(cudaGetLastError()));
+
     //cu_histogram(img_w, img_h, gm_img, gm_tmp, histo);
 
+    /*
     {
         printf("histogram:\n");
         int j;
@@ -96,6 +116,7 @@ int main(int argc, char *argv[])
             printf("%d ", histo[j]);
         printf("\n\n");
     }
+    */
 
     {
         FILE *file = fopen("histo.pgm", "w");
@@ -124,6 +145,17 @@ int main(int argc, char *argv[])
             fputc((sobel_h[p] >> 1) + 128, file);
             fputc(0, file);
             fputc((sobel_v[p] >> 1) + 128, file);
+        }
+        fclose(file);
+    }
+
+    {
+        FILE *file = fopen("hough.pgm", "w");
+        fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+        int p, v;
+        for (p = 0; p < img_w * img_h; p++) {
+            v = hough_d[p] >> 14;
+            fputc((v > 255) ? 255 : v, file);
         }
         fclose(file);
     }
