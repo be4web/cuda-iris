@@ -64,22 +64,21 @@ __global__ void hough_transform(int *result) {
 
     int local_acc = int(0);
 
-    /*
     int phi;
-    for (phi = 0; phi < 240; phi++) {
+    for (phi = -120; phi < 120; phi++) {
         float phi_f = (float)phi * PI / 120.0;
 
         dx = rad * cos(phi_f);
         dy = rad * sin(phi_f);
 
         if (tex2D(abs_tex, x + dx, y + dy) > 20) {
-            float grad = PI + tex2D(phi_tex, x + dx, y + dy) - phi_f;
+            float grad = tex2D(phi_tex, x + dx, y + dy) - phi_f;
             if (-PI / 12.0 < grad && grad < PI / 12.0)
                 local_acc++;
         }
     }
-    */
 
+    /*
     dx = rad * 0.9996573250;
     dy = rad * 0.0261769483;
 
@@ -2721,6 +2720,7 @@ __global__ void hough_transform(int *result) {
 
 
     }
+    */
 
     local_acc = blockReduceSum(local_acc * local_acc * local_acc);
 

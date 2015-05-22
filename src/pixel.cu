@@ -33,8 +33,8 @@ __global__ void cart_to_polar_kernel(int img_w, int16_t *hori, int16_t *vert, fl
         grad_y = vert[p];
 
     //rad[p] = (unsigned int)(grad_x * grad_x + grad_y * grad_y) >> 5;
-    rad[p] = sqrt((float)(grad_x * grad_x + grad_y * grad_y));
-    phi[p] = atan2((double)grad_y, (double)grad_x);
+    rad[p] = sqrtf((float)(grad_x * grad_x + grad_y * grad_y));
+    phi[p] = atan2f((float)grad_y, (float)grad_x);
 }
 
 extern "C" void cu_cart_to_polar(int img_w, int img_h, void *gm_hori, void *gm_vert, void *gm_rad, void *gm_phi)

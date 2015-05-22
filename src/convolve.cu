@@ -185,7 +185,7 @@ extern "C" int cu_gauss_filter(int rad, int img_w, int img_h, void *gm_in, void 
 DECL_CU_CONVOLUTION_ROW(sobel, uint8_t, int16_t, int, 3, 1, (WARP_SIZE / 1), 8);
 DECL_CU_CONVOLUTION_COL(sobel, int16_t, int16_t, int, 3, (WARP_SIZE / 1), 1, 8);
 
-__constant__ int sobel_mtx_1[3] = { 1, 0, -1 };
+__constant__ int sobel_mtx_1[3] = { -1, 0, 1 };
 __constant__ int sobel_mtx_2[3] = { 1, 2, 1 };
 
 extern "C" int cu_sobel_filter(int img_w, int img_h, void *gm_in, void *gm_hori, void *gm_vert, void *gm_tmp)

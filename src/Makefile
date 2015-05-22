@@ -10,7 +10,7 @@ test: $(PROG)
 	./$(PROG) $(TESTFILE)
 
 $(PROG): $(OBJECTS)
-	gcc -o $(PROG) $(OBJECTS) `pkg-config --libs gdk-pixbuf-2.0` -L/opt/cuda/lib64/ -lcudart
+	gcc -o $(PROG) $(OBJECTS) `pkg-config --libs gdk-pixbuf-2.0` -lm -L/opt/cuda/lib64/ -lcudart
 
 %.o: %.c
 	gcc -c -g -o $@ $< `pkg-config --cflags gdk-pixbuf-2.0` -I/opt/cuda/include/

@@ -5,6 +5,8 @@
 #include <cuda_runtime.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 
+#include <math.h>
+
 #include "pixel.h"
 #include "convolve.h"
 #include "reduction.h"
@@ -93,10 +95,37 @@ int main(int argc, char *argv[])
     cudaMemcpy(sobel_h, gm_sobel_h, img_w * img_h * 2, cudaMemcpyDeviceToHost);
     cudaMemcpy(sobel_v, gm_sobel_v, img_w * img_h * 2, cudaMemcpyDeviceToHost);
 
-    cu_cart_to_polar(img_w, img_h, gm_sobel_h, gm_sobel_v, gm_sobel_1, gm_sobel_2);
+    //! Transformation der Gradienten von kartesisch nach polar:
+    // - auf der Grafikkarte (funktioniert nicht):
+    /*
+    {
+        cu_cart_to_polar(img_w, img_h, gm_sobel_h, gm_sobel_v, gm_sobel_1, gm_sobel_2);
 
-    cudaMemcpy2D(gm_sobel_abs, sobel_pitch, gm_sobel_1, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
-    cudaMemcpy2D(gm_sobel_phi, sobel_pitch, gm_sobel_2, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+        cudaMemcpy2D(gm_sobel_abs, sobel_pitch, gm_sobel_1, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+        cudaMemcpy2D(gm_sobel_phi, sobel_pitch, gm_sobel_2, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+    }
+    */
+
+    // - auf der CPU (funktioniert):
+    {
+        float *abs, *phi;
+        int x, y;
+
+        abs = malloc(img_w * img_h * sizeof(float));
+        phi = malloc(img_w * img_h * sizeof(float));
+
+        for (y = 0; y < img_h; y++)
+            for (x = 0; x < img_w; x++) {
+                int hori = sobel_h[img_w * y + x],
+                    vert = sobel_v[img_w * y + x];
+
+                phi[img_w * y + x] = atan2(vert, hori);
+                abs[img_w * y + x] = sqrt(hori* hori + vert * vert);
+            }
+
+        cudaMemcpy2D(gm_sobel_phi, sobel_pitch, phi, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyHostToDevice);
+        cudaMemcpy2D(gm_sobel_abs, sobel_pitch, abs, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyHostToDevice);
+    }
 
     cu_hough(img_w, img_h, sobel_pitch, gm_sobel_abs, gm_sobel_phi, gm_tmp);
 
@@ -105,18 +134,6 @@ int main(int argc, char *argv[])
 
     cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
     printf("cudaMemcpy error: %s\n", cudaGetErrorString(cudaGetLastError()));
-
-    //cu_histogram(img_w, img_h, gm_img, gm_tmp, histo);
-
-    /*
-    {
-        printf("histogram:\n");
-        int j;
-        for (j = 0; j < 256; j++)
-            printf("%d ", histo[j]);
-        printf("\n\n");
-    }
-    */
 
     {
         FILE *file = fopen("histo.pgm", "w");
@@ -154,7 +171,7 @@ int main(int argc, char *argv[])
         fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
         int p, v;
         for (p = 0; p < img_w * img_h; p++) {
-            v = hough_d[p] >> 14;
+            v = hough_d[p] >> 16;
             fputc((v > 255) ? 255 : v, file);
         }
         fclose(file);
