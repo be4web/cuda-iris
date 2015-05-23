@@ -5,8 +5,8 @@ extern "C" {
 
 __global__ void color_to_gray_kernel(int img_w, uint32_t *color, uint8_t *gray, int coeff_r, int coeff_g, int coeff_b)
 {
-    const int x = blockIdx.x * 8 + threadIdx.x;
-    const int y = blockIdx.y * 8 + threadIdx.y;
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
     const int p = img_w * y + x;
 
     int div = coeff_r + coeff_g + coeff_b;
@@ -25,8 +25,8 @@ extern "C" void cu_color_to_gray(int img_w, int img_h, void *gm_color, void *gm_
 
 __global__ void cart_to_polar_kernel(int img_w, int16_t *hori, int16_t *vert, float *rad, float *phi)
 {
-    const int x = blockIdx.x * 8 + threadIdx.x;
-    const int y = blockIdx.y * 8 + threadIdx.y;
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
     const int p = img_w * y + x;
 
     int grad_x = hori[p],
@@ -42,13 +42,13 @@ extern "C" void cu_cart_to_polar(int img_w, int img_h, void *gm_hori, void *gm_v
     dim3 blocks(img_w / 8, img_h / 8);
     dim3 threads(8, 8);
 
-    cart_to_polar_kernel<<<blocks, threads>>>(img_w, (int16_t *)gm_hori, (int16_t *)gm_hori, (float *)gm_rad, (float *)gm_phi);
+    cart_to_polar_kernel<<<blocks, threads>>>(img_w, (int16_t *)gm_hori, (int16_t *)gm_vert, (float *)gm_rad, (float *)gm_phi);
 }
 
 __global__ void pixel_substitute_kernel(int img_w, uint8_t *in, uint8_t *out, uint8_t *sub)
 {
-    const int x = blockIdx.x * 8 + threadIdx.x;
-    const int y = blockIdx.y * 8 + threadIdx.y;
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
     const int p = img_w * y + x;
 
     out[p] = sub[in[p]];
