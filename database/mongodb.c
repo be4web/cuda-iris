@@ -28,7 +28,8 @@ int main(int argc,char *argv[]) {
     doc = bson_new();
     bson_oid_init (&oid, NULL);
     BSON_APPEND_OID (doc, "ID", &oid);
-    BSON_APPEND_UTF8 (doc, "1234567890", "DFSKEFFN");
+    char *datastring = "longstringthatshoulbesearchedFFFFFFFFFFFddajfnkejfnkjdsvnkjbnvkejbfkjbekfjbdskjvkj";
+    BSON_APPEND_UTF8 (doc, "1234567890", datastring);
 
     if (!mongoc_collection_insert (collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
         printf ("Insert error %s\n", error.message);
@@ -51,6 +52,19 @@ int main(int argc,char *argv[]) {
 		bson_free(str);
 	}
 	bson_destroy(query);
+    /* mongodb execute collStats command */
+    bson_t *command;
+    bson_t reply;
+    
+    command = BCON_NEW("collStats",BCON_UTF8("test"));
+    if(mongoc_collection_command_simple(collection,command, NULL, &reply, &error))
+    {
+		str = bson_as_json(&reply, NULL);
+		printf("%s\n",str);
+		bson_free(str);
+	}else{
+		printf("Failed to run command %s\n",error.message);
+	}
     
     /* mongodb delete*/
     doc = bson_new ();
