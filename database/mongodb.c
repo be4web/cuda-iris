@@ -11,7 +11,13 @@ int main(int argc,char *argv[]) {
     mongoc_cursor_t *cursor;
     bson_error_t error;
     bson_oid_t oid;
+    const bson_t *fixdoc;
     bson_t *doc;
+    /* search query */
+    bson_t *query;
+    /* search string */
+    char *str;
+    
 	/*set up the environment*/
     mongoc_init ();
 
@@ -34,7 +40,17 @@ int main(int argc,char *argv[]) {
     
     /*mongodb search like*/
     
+    query = bson_new();
+    cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query,NULL,NULL);
     
+    /*move query cursor*/
+    printf("Search all documents in database 'test'\n");
+    while(mongoc_cursor_next(cursor, &fixdoc)){
+		str = bson_as_json(fixdoc,NULL);
+		printf("search string %s\n",str);
+		bson_free(str);
+	}
+	bson_destroy(query);
     
     /* mongodb delete*/
     doc = bson_new ();
@@ -50,11 +66,9 @@ int main(int argc,char *argv[]) {
     bson_destroy(doc);
     /* end */
     
+	mongoc_cursor_destroy(cursor);
     mongoc_collection_destroy (collection);
     mongoc_client_destroy (client);
-
-    return 0;
-
 
   return 0;
 }
