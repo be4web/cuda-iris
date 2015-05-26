@@ -2,7 +2,7 @@
 
 PROG = convolve
 TESTFILE = test.gif
-OBJECTS = main.o convolve.co pixel.co reduction.co hough.co unroll.co
+OBJECTS = main.o convolve.co pixel.co histogram.co hough.co unroll.co
 
 all: $(PROG)
 

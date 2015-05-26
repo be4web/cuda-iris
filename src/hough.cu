@@ -88,7 +88,7 @@ __global__ void hough_transform(int *result) {
 
 #include <stdio.h>
 
-extern "C" void cu_hough(int img_w, int img_h, int pitch, void *gm_abs, void *gm_phi, void *gm_hough)
+extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, void *gm_hough)
 {
     cudaEvent_t start, stop;
 
@@ -97,8 +97,8 @@ extern "C" void cu_hough(int img_w, int img_h, int pitch, void *gm_abs, void *gm
 
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<float>();
 
-    cudaBindTexture2D(NULL, abs_tex, gm_abs, desc, img_w, img_h, pitch);
-    cudaBindTexture2D(NULL, phi_tex, gm_phi, desc, img_w, img_h, pitch);
+    cudaBindTexture2D(NULL, abs_tex, gm_abs, desc, img_w, img_h, abs_p * 4);
+    cudaBindTexture2D(NULL, phi_tex, gm_phi, desc, img_w, img_h, phi_p * 4);
 
     cudaMemset(gm_hough, 0, img_w * img_h * sizeof(int));
 

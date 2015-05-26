@@ -3,58 +3,55 @@ extern "C" {
 #include <stdint.h>
 }
 
-__global__ void color_to_gray_kernel(int img_w, uint32_t *color, uint8_t *gray, int coeff_r, int coeff_g, int coeff_b)
+__global__ void color_to_gray_kernel(int color_p, uint32_t *color, int gray_p, uint8_t *gray, int coeff_r, int coeff_g, int coeff_b)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    const int p = img_w * y + x;
 
     int div = coeff_r + coeff_g + coeff_b;
-    uint32_t clr = color[p];
+    uint32_t clr = color[color_p * y + x];
 
-    gray[p] = ((clr & 0xff) * coeff_r + ((clr >> 8) & 0xff) * coeff_g + ((clr >> 16) & 0xff) * coeff_b) / div;
+    gray[gray_p * y + x] = ((clr & 0xff) * coeff_r + ((clr >> 8) & 0xff) * coeff_g + ((clr >> 16) & 0xff) * coeff_b) / div;
 }
 
-extern "C" void cu_color_to_gray(int img_w, int img_h, void *gm_color, void *gm_gray)
+extern "C" void cu_color_to_gray(int img_w, int img_h, int color_p, void *gm_color, int gray_p, void *gm_gray)
 {
     dim3 blocks(img_w / 8, img_h / 8);
     dim3 threads(8, 8);
 
-    color_to_gray_kernel<<<blocks, threads>>>(img_w, (uint32_t *)gm_color, (uint8_t *)gm_gray, 1, 1, 1);
+    color_to_gray_kernel<<<blocks, threads>>>(color_p, (uint32_t *)gm_color, gray_p, (uint8_t *)gm_gray, 1, 1, 1);
 }
 
-__global__ void cart_to_polar_kernel(int img_w, int16_t *hori, int16_t *vert, float *rad, float *phi)
+__global__ void cart_to_polar_kernel(int hori_p, int16_t *hori, int vert_p, int16_t *vert, int abs_p, float *abs, int phi_p, float *phi)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    const int p = img_w * y + x;
 
-    int grad_x = hori[p],
-        grad_y = vert[p];
+    int grad_x = hori[hori_p * y + x],
+        grad_y = vert[vert_p * y + x];
 
     //rad[p] = (unsigned int)(grad_x * grad_x + grad_y * grad_y) >> 5;
-    rad[p] = sqrtf((float)(grad_x * grad_x + grad_y * grad_y));
-    phi[p] = atan2f((float)grad_y, (float)grad_x);
+    abs[abs_p * y + x] = sqrtf((float)(grad_x * grad_x + grad_y * grad_y));
+    phi[phi_p * y + x] = atan2f((float)grad_y, (float)grad_x);
 }
 
-extern "C" void cu_cart_to_polar(int img_w, int img_h, void *gm_hori, void *gm_vert, void *gm_rad, void *gm_phi)
+extern "C" void cu_cart_to_polar(int img_w, int img_h, int hori_p, void *gm_hori, int vert_p, void *gm_vert, int abs_p, void *gm_abs, int phi_p, void *gm_phi)
 {
     dim3 blocks(img_w / 8, img_h / 8);
     dim3 threads(8, 8);
 
-    cart_to_polar_kernel<<<blocks, threads>>>(img_w, (int16_t *)gm_hori, (int16_t *)gm_vert, (float *)gm_rad, (float *)gm_phi);
+    cart_to_polar_kernel<<<blocks, threads>>>(hori_p, (int16_t *)gm_hori, vert_p, (int16_t *)gm_vert, abs_p, (float *)gm_abs, phi_p, (float *)gm_phi);
 }
 
-__global__ void pixel_substitute_kernel(int img_w, uint8_t *in, uint8_t *out, uint8_t *sub)
+__global__ void pixel_substitute_kernel(int in_p, uint8_t *in, int out_p, uint8_t *out, uint8_t *sub)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    const int p = img_w * y + x;
 
-    out[p] = sub[in[p]];
+    out[out_p * y + x] = sub[in[in_p * y + x]];
 }
 
-extern "C" void cu_pixel_substitute(int img_w, int img_h, void *gm_in, void *gm_out, uint8_t *sub)
+extern "C" void cu_pixel_substitute(int img_w, int img_h, int in_p, void *gm_in, int out_p, void *gm_out, uint8_t *sub)
 {
     void *gm_sub;
     cudaMalloc(&gm_sub, 256);
@@ -63,19 +60,20 @@ extern "C" void cu_pixel_substitute(int img_w, int img_h, void *gm_in, void *gm_
     dim3 blocks(img_w / 8, img_h / 8);
     dim3 threads(8, 8);
 
-    pixel_substitute_kernel<<<blocks, threads>>>(img_w, (uint8_t *)gm_in, (uint8_t *)gm_out, (uint8_t *)gm_sub);
+    pixel_substitute_kernel<<<blocks, threads>>>(in_p, (uint8_t *)gm_in, out_p, (uint8_t *)gm_out, (uint8_t *)gm_sub);
+
+    cudaFree(&gm_sub);
 }
 
 #define GAUSS_STD_DEV 0.3 // gaussian standard deviation
 
-__global__ void centered_gradient_normalization_kernel(int img_w, int center_x, int center_y, float *abs, float *phi, float *norm)
+__global__ void centered_gradient_normalization_kernel(int abs_p, float *abs, int phi_p, float *phi, int norm_p, float *norm, int center_x, int center_y)
 {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    const int p = img_w * y + x;
 
-    float grad_abs = abs[p],
-          grad_phi = phi[p];
+    float grad_abs = abs[abs_p * y + x],
+          grad_phi = phi[phi_p * y + x];
 
     float center_phi = atan2f((float)(y - center_y), (float)(x - center_x));
 
@@ -84,13 +82,13 @@ __global__ void centered_gradient_normalization_kernel(int img_w, int center_x, 
     // phi difference is normalized using gaussian function
     float norm_phi_diff = expf(-(phi_diff * phi_diff) / GAUSS_STD_DEV);
 
-    norm[p] = grad_abs * norm_phi_diff;
+    norm[norm_p * y + x] = grad_abs * norm_phi_diff;
 }
 
-extern "C" void cu_centered_gradient_normalization(int img_w, int img_h, int center_x, int center_y, void *gm_abs, void *gm_phi, void *gm_norm)
+extern "C" void cu_centered_gradient_normalization(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, int norm_p, void *gm_norm, int center_x, int center_y)
 {
     dim3 blocks(img_w / 8, img_h / 8);
     dim3 threads(8, 8);
 
-    centered_gradient_normalization_kernel<<<blocks, threads>>>(img_w, center_x, center_y, (float *)gm_abs, (float *)gm_phi, (float *)gm_norm);
+    centered_gradient_normalization_kernel<<<blocks, threads>>>(abs_p, (float *)gm_abs, phi_p, (float *)gm_phi, norm_p, (float *)gm_norm, center_x, center_y);
 }

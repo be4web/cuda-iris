@@ -10,7 +10,7 @@
 
 #include "pixel.h"
 #include "convolve.h"
-#include "reduction.h"
+#include "histogram.h"
 #include "hough.h"
 #include "unroll.h"
 
@@ -39,30 +39,38 @@ int main(int argc, char *argv[])
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
-    void *gm_img, *gm_sobel_h, *gm_sobel_v, *gm_sobel_1, *gm_sobel_2, *gm_tmp, *gm_sobel_abs, *gm_sobel_phi;
-    size_t sobel_pitch;
+    void *gm_color, *gm_gray, *gm_sobel_h, *gm_sobel_v, *gm_sobel_abs, *gm_sobel_phi, *gm_tmp;
+    int pitch32;
 
-    cudaMalloc(&gm_img, img_w * img_h);
+    {
+        struct cudaDeviceProp prop;
+        int tex_align;
+        cudaGetDeviceProperties(&prop, 0);
+        tex_align = prop.textureAlignment - 1;
+
+        pitch32 = ((img_w * 4 + tex_align) & ~tex_align) >> 2;
+        printf("texture alignment: %d, 32-bit width: %d => pitch: %d, per sample: %d\n", tex_align + 1, img_w * 4, pitch32 * 4, pitch32);
+    }
+
+    cudaMalloc(&gm_color, pitch32 * img_h * 4);
+    cudaMalloc(&gm_gray, img_w * img_h);
     cudaMalloc(&gm_sobel_h, img_w * img_h * 4);
     cudaMalloc(&gm_sobel_v, img_w * img_h * 4);
-    cudaMalloc(&gm_sobel_1, img_w * img_h * 4);
-    cudaMalloc(&gm_sobel_2, img_w * img_h * 4);
-    cudaMalloc(&gm_tmp, img_w * img_h * 4);
+    cudaMalloc(&gm_sobel_abs, pitch32 * img_h * 4);
+    cudaMalloc(&gm_sobel_phi, pitch32 * img_h * 4);
+    cudaMalloc(&gm_tmp, pitch32 * img_h * 4);
 
-    cudaMallocPitch(&gm_sobel_abs, &sobel_pitch, img_w * sizeof(float), img_h);
-    cudaMallocPitch(&gm_sobel_phi, &sobel_pitch, img_w * sizeof(float), img_h);
+    cudaMemcpy2D(gm_color, pitch32 * 4, img_d, img_w * 4, img_w * 4, img_h, cudaMemcpyHostToDevice);
 
-    cudaMemcpy(gm_tmp, img_d, img_w * img_h * 4, cudaMemcpyHostToDevice);
-
-    cu_color_to_gray(img_w, img_h, gm_tmp, gm_img);
+    cu_color_to_gray(img_w, img_h, pitch32, gm_color, img_w, gm_gray);
 
     //! Gauss Filter:
-    if (cu_gauss_filter(11, img_w, img_h, gm_img, gm_img, gm_tmp) < 0)
+    if (cu_gauss_filter(11, img_w, img_h, gm_gray, gm_gray, gm_tmp) < 0)
         fprintf(stderr, "error applying gauss filter\n");
 
     {
         uint8_t *gray_d = malloc(img_w * img_h);
-        cudaMemcpy(gray_d, gm_img, img_w * img_h, cudaMemcpyDeviceToHost);
+        cudaMemcpy(gray_d, gm_gray, img_w * img_h, cudaMemcpyDeviceToHost);
 
         FILE *file = fopen("gauss.pgm", "w");
         fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
@@ -70,16 +78,17 @@ int main(int argc, char *argv[])
         for (p = 0; p < img_w * img_h; p++)
             fputc(gray_d[p], file);
         fclose(file);
+
+        free(gray_d);
     }
 
     //! Sobel Filter:
-    cu_sobel_filter(img_w, img_h, gm_img, gm_sobel_h, gm_sobel_v, gm_tmp);
+    cu_sobel_filter(img_w, img_h, gm_gray, gm_sobel_h, gm_sobel_v, gm_tmp);
 
     {
         int16_t *sobel_h, *sobel_v;
         sobel_h = malloc(img_w * img_h * 2);
         sobel_v = malloc(img_w * img_h * 2);
-
         cudaMemcpy(sobel_h, gm_sobel_h, img_w * img_h * 2, cudaMemcpyDeviceToHost);
         cudaMemcpy(sobel_v, gm_sobel_v, img_w * img_h * 2, cudaMemcpyDeviceToHost);
 
@@ -92,23 +101,20 @@ int main(int argc, char *argv[])
             fputc((sobel_v[p] >> 1) + 128, file);
         }
         fclose(file);
+
+        free(sobel_h);
+        free(sobel_v);
     }
 
     //! Transformation der Gradienten (Sobel) von kartesisch nach polar:
-    cu_cart_to_polar(img_w, img_h, gm_sobel_h, gm_sobel_v, gm_sobel_1, gm_sobel_2);
-
-    cudaMemcpy2D(gm_sobel_abs, sobel_pitch, gm_sobel_1, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
-    cudaMemcpy2D(gm_sobel_phi, sobel_pitch, gm_sobel_2, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+    cu_cart_to_polar(img_w, img_h, img_w, gm_sobel_h, img_w, gm_sobel_v, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi);
 
     //! Hough Transformation:
-    cu_hough(img_w, img_h, sobel_pitch, gm_sobel_abs, gm_sobel_phi, gm_tmp);
+    cu_hough(img_w, img_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, gm_tmp);
 
     {
-        int *hough_d;
-        hough_d = malloc(img_w * img_h * 4);
-
+        int *hough_d = malloc(img_w * img_h * 4);
         cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
-        printf("cudaMemcpy error: %s\n", cudaGetErrorString(cudaGetLastError()));
 
         FILE *file = fopen("hough.pgm", "w");
         fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
@@ -118,6 +124,8 @@ int main(int argc, char *argv[])
             fputc((v > 255) ? 255 : v, file);
         }
         fclose(file);
+
+        free(hough_d);
     }
 
     int center_x, center_y;
@@ -126,88 +134,30 @@ int main(int argc, char *argv[])
     cu_center_detection(img_w, img_h, gm_tmp, &center_x, &center_y);
     printf("center: (%d, %d)\n", center_x, center_y);
 
-    /*
-    {
-        center_x = 0;
-        center_y = 0;
-
-        {
-            int x, y, c = 0;
-            for (x = 0; x < img_w; x++)
-                for (y = 0; y < img_h; y++)
-                    if (hough_d[y * img_w + x] > (1 << 22)) {
-                        center_x += x;
-                        center_y += y;
-                        c++;
-                    }
-
-            if (c == 0) {
-                fprintf(stderr, "error: no center detected\n");
-                return 1;
-            }
-
-            center_x /= c;
-            center_y /= c;
-        }
-
-        printf("center: (%d, %d)\n", center_x, center_y);
-
-        int *hough_radius;
-        hough_radius = get_hough_radius(sobel_h, sobel_v, img_w, img_h, center_x, center_y);
-
-        {
-            FILE *file = fopen("radius.pgm", "w");
-            fprintf(file, "P5\n%d %d\n255\n", MAX_RAD, 200);
-            int x, y;
-            for (y = 0; y < 200; y++)
-                for (x = 0; x < MAX_RAD; x++)
-                    fputc((hough_radius[x] > (200 - y)) ? 255 : 0, file);
-            fclose(file);
-        }
-
-        inner_rad = 0;
-        outer_rad = 0;
-
-        {
-            int rad;
-            for (rad = MIN_RAD; rad < MAX_RAD; rad++)
-                if (hough_radius[rad] > hough_radius[outer_rad])
-                    outer_rad = rad;
-
-            for (rad = MIN_RAD; rad < outer_rad * 3 / 4; rad++)
-                if (hough_radius[rad] > hough_radius[inner_rad])
-                    inner_rad = rad;
-        }
-    }
-    */
-
     float inner_rad[32], outer_rad[32];
 
     //! Berechnung des inneren und aeusseren Radius:
     {
-        cu_centered_gradient_normalization(img_w, img_h, center_x, center_y, gm_sobel_1, gm_sobel_2, gm_tmp);
+        void *gm_norm, *gm_norm_unr, *gm_tmp_unr;
+        cudaMalloc(&gm_norm, pitch32 * img_h * 4);
+        cudaMalloc(&gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
+        cudaMalloc(&gm_tmp_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
 
-        float *norm;
-        norm = malloc(img_w * img_h * 4);
-
-        cudaMemcpy(norm, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+        cu_centered_gradient_normalization(img_w, img_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, pitch32, gm_norm, center_x, center_y);
 
         {
+            float *norm = malloc(img_w * img_h * 4);
+            cudaMemcpy(norm, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+
             FILE *file = fopen("sobel_norm.pgm", "w");
             fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
             int p;
             for (p = 0; p < img_w * img_h; p++)
                 fputc((int)norm[p], file);
             fclose(file);
+
+            free(norm);
         }
-
-        void *gm_norm, *gm_norm_unr, *gm_tmp_unr;
-        size_t pitch;
-        cudaMallocPitch(&gm_norm, &pitch, img_w * sizeof(float), img_h);
-        cudaMalloc(&gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
-        cudaMalloc(&gm_tmp_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
-
-        cudaMemcpy2D(gm_norm, pitch, gm_tmp, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
 
         int i;
         for (i = 0; i < 32; i++) {
@@ -215,7 +165,7 @@ int main(int argc, char *argv[])
             outer_rad[i] = 120.0;
         }
 
-        cu_unroll(img_w, img_h, pitch, center_x, center_y, inner_rad, outer_rad, gm_norm, gm_norm_unr, gm_tmp);
+        cu_unroll(img_w, img_h, pitch32, gm_norm, gm_norm_unr, center_x, center_y, inner_rad, outer_rad, gm_tmp);
 
         cu_gauss_filter_f11(CU_UNROLL_W, CU_UNROLL_H, gm_norm_unr, gm_norm_unr, gm_tmp_unr);
 
@@ -339,6 +289,7 @@ int main(int argc, char *argv[])
                 else {
                     if (cost_1 > cost_2) {
                         if (cost < cost_1) {
+                            free(route_1);
                             route_1 = route_2;
                             cost_1 = cost_2;
                             route_2 = act_route;
@@ -347,6 +298,7 @@ int main(int argc, char *argv[])
                         }
                     }
                     else if (cost < cost_2) {
+                        free(route_2);
                         route_2 = act_route;
                         cost_2 = cost;
                         act_route = malloc(CU_UNROLL_W * sizeof(int));
@@ -354,6 +306,8 @@ int main(int argc, char *argv[])
                 }
             }
         }
+
+        free(act_route);
 
         if (route_1 == NULL || route_2 == NULL) {
             fprintf(stderr, "error: no iris boundaries detected\n");
@@ -374,6 +328,16 @@ int main(int argc, char *argv[])
             inner_rad[i] = route_1[i * CU_UNROLL_W / 32] * (120 - 6) / CU_UNROLL_H + 6;
             outer_rad[i] = route_2[i * CU_UNROLL_W / 32] * (120 - 6) / CU_UNROLL_H + 6;
         }
+
+        free(route_1);
+        free(route_2);
+
+        free(norm_unr);
+        free(norm_unr_maxima);
+
+        cudaFree(gm_norm);
+        cudaFree(gm_norm_unr);
+        cudaFree(gm_tmp_unr);
     }
 
     void *gm_iris;
@@ -381,20 +345,14 @@ int main(int argc, char *argv[])
 
     //! Aufrollen der Iris:
     {
-        void *gm_img_pitch;
-        size_t pitch;
-
-        cudaMallocPitch(&gm_img_pitch, &pitch, img_w * 4, img_h);
-        cudaMemcpy2D(gm_img_pitch, pitch, img_d, img_w * 4, img_w * 4, img_h, cudaMemcpyHostToDevice);
-
         cudaMemset(gm_tmp, 0, img_w * img_h);
 
-        cu_unroll(img_w, img_h, pitch, center_x, center_y, inner_rad, outer_rad, gm_img_pitch, gm_iris, gm_tmp);
-
-        uint8_t *iris_d = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
-        cudaMemcpy(iris_d, gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4, cudaMemcpyDeviceToHost);
+        cu_unroll(img_w, img_h, pitch32, gm_color, gm_iris, center_x, center_y, inner_rad, outer_rad, gm_tmp);
 
         {
+            uint8_t *iris_d = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
+            cudaMemcpy(iris_d, gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4, cudaMemcpyDeviceToHost);
+
             FILE *file = fopen("iris.ppm", "w");
             fprintf(file, "P6\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
             int p;
@@ -404,6 +362,8 @@ int main(int argc, char *argv[])
                 fputc(iris_d[p * 4 + 2], file);
             }
             fclose(file);
+
+            free(iris_d);
         }
 
         {
@@ -423,6 +383,8 @@ int main(int argc, char *argv[])
             for (p = 0; p < img_w * img_h; p++)
                 fputc(gray_d[p], file);
             fclose(file);
+
+            free(gray_d);
         }
     }
 
@@ -430,13 +392,13 @@ int main(int argc, char *argv[])
     cudaMalloc(&gm_iris_gray, CU_UNROLL_W * CU_UNROLL_H);
     cudaMalloc(&gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H);
 
-    cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, gm_iris, gm_iris_gray);
+    cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris, CU_UNROLL_W, gm_iris_gray);
 
     //! Histogram equalization der Iris
     {
         int *histo = malloc(sizeof(int) * 256);
 
-        cu_histogram(CU_UNROLL_W, CU_UNROLL_H, gm_iris_gray, gm_iris_tmp, histo);
+        cu_histogram(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, gm_iris_tmp, histo);
 
         {
             FILE *file = fopen("iris_histo.pgm", "w");
@@ -460,7 +422,7 @@ int main(int argc, char *argv[])
             //printf("%d ", sub[i]);
         }
         //printf("\n\n");
-        cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, gm_iris_gray, gm_iris_tmp, sub);
+        cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, CU_UNROLL_W, gm_iris_tmp, sub);
 
         {
             uint8_t *gray_d = malloc(CU_UNROLL_W * CU_UNROLL_H);
@@ -472,8 +434,22 @@ int main(int argc, char *argv[])
             for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++)
                 fputc(gray_d[p], file);
             fclose(file);
+
+            free(gray_d);
         }
     }
+
+    cudaFree(gm_iris);
+    cudaFree(gm_iris_gray);
+    cudaFree(gm_iris_tmp);
+
+    cudaFree(&gm_color);
+    cudaFree(&gm_gray);
+    cudaFree(&gm_sobel_h);
+    cudaFree(&gm_sobel_v);
+    cudaFree(&gm_sobel_abs);
+    cudaFree(&gm_sobel_phi);
+    cudaFree(&gm_tmp);
 
     return 0;
 }
