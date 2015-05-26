@@ -58,3 +58,4 @@ extern "C" void cu_histogram(int img_w, int img_h, void *gm_img, void *gm_tmp, i
 
     cudaMemcpy(histo, gm_tmp, 256 * sizeof(int), cudaMemcpyDeviceToHost);
 }
+

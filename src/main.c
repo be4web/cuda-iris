@@ -75,14 +75,14 @@ int main(int argc, char *argv[])
     //! Sobel Filter:
     cu_sobel_filter(img_w, img_h, gm_img, gm_sobel_h, gm_sobel_v, gm_tmp);
 
-    int16_t *sobel_h, *sobel_v;
-    sobel_h = malloc(img_w * img_h * 2);
-    sobel_v = malloc(img_w * img_h * 2);
-
-    cudaMemcpy(sobel_h, gm_sobel_h, img_w * img_h * 2, cudaMemcpyDeviceToHost);
-    cudaMemcpy(sobel_v, gm_sobel_v, img_w * img_h * 2, cudaMemcpyDeviceToHost);
-
     {
+        int16_t *sobel_h, *sobel_v;
+        sobel_h = malloc(img_w * img_h * 2);
+        sobel_v = malloc(img_w * img_h * 2);
+
+        cudaMemcpy(sobel_h, gm_sobel_h, img_w * img_h * 2, cudaMemcpyDeviceToHost);
+        cudaMemcpy(sobel_v, gm_sobel_v, img_w * img_h * 2, cudaMemcpyDeviceToHost);
+
         FILE *file = fopen("sobel.ppm", "w");
         fprintf(file, "P6\n%d %d\n255\n", img_w, img_h);
         int p;
@@ -103,13 +103,13 @@ int main(int argc, char *argv[])
     //! Hough Transformation:
     cu_hough(img_w, img_h, sobel_pitch, gm_sobel_abs, gm_sobel_phi, gm_tmp);
 
-    int *hough_d;
-    hough_d = malloc(img_w * img_h * 4);
-
-    cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
-    printf("cudaMemcpy error: %s\n", cudaGetErrorString(cudaGetLastError()));
-
     {
+        int *hough_d;
+        hough_d = malloc(img_w * img_h * 4);
+
+        cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+        printf("cudaMemcpy error: %s\n", cudaGetErrorString(cudaGetLastError()));
+
         FILE *file = fopen("hough.pgm", "w");
         fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
         int p, v;
@@ -123,6 +123,10 @@ int main(int argc, char *argv[])
     int center_x, center_y;
 
     //! Berechnung des Zentrums:
+    cu_center_detection(img_w, img_h, gm_tmp, &center_x, &center_y);
+    printf("center: (%d, %d)\n", center_x, center_y);
+
+    /*
     {
         center_x = 0;
         center_y = 0;
@@ -146,7 +150,8 @@ int main(int argc, char *argv[])
             center_y /= c;
         }
 
-        /*
+        printf("center: (%d, %d)\n", center_x, center_y);
+
         int *hough_radius;
         hough_radius = get_hough_radius(sobel_h, sobel_v, img_w, img_h, center_x, center_y);
 
@@ -173,8 +178,8 @@ int main(int argc, char *argv[])
                 if (hough_radius[rad] > hough_radius[inner_rad])
                     inner_rad = rad;
         }
-        */
     }
+    */
 
     float inner_rad[32], outer_rad[32];
 
