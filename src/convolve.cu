@@ -182,6 +182,20 @@ extern "C" int cu_gauss_filter(int rad, int img_w, int img_h, void *gm_in, void 
     return 0;
 }
 
+DECL_CU_CONVOLUTION_ROW(gaussf, float, float, float, 11, 6, (WARP_SIZE / 6), 4)
+DECL_CU_CONVOLUTION_COL(gaussf, float, float, float, 11, (WARP_SIZE / 6), 6, 4)
+
+__constant__ float gauss_mtx_f11[11] = { 1.0, 10.0, 45.0, 120.0, 210.0, 252.0, 210.0, 120.0, 45.0, 10.0, 1.0 };
+
+extern "C" void cu_gauss_filter_f11(int img_w, int img_h, void *gm_in, void *gm_out, void *gm_tmp)
+{
+    void *mtx;
+
+    cudaGetSymbolAddress(&mtx, gauss_mtx_f11);
+    cu_convolve_row_gaussf11(gm_in, gm_tmp, mtx, 1024.0, img_w, img_h);
+    cu_convolve_col_gaussf11(gm_tmp, gm_out, mtx, 1024.0, img_w, img_h);
+}
+
 DECL_CU_CONVOLUTION_ROW(sobel, uint8_t, int16_t, int, 3, 1, (WARP_SIZE / 1), 8);
 DECL_CU_CONVOLUTION_COL(sobel, int16_t, int16_t, int, 3, (WARP_SIZE / 1), 1, 8);
 

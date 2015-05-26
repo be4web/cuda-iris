@@ -65,3 +65,32 @@ extern "C" void cu_pixel_substitute(int img_w, int img_h, void *gm_in, void *gm_
 
     pixel_substitute_kernel<<<blocks, threads>>>(img_w, (uint8_t *)gm_in, (uint8_t *)gm_out, (uint8_t *)gm_sub);
 }
+
+#define GAUSS_STD_DEV 0.3 // gaussian standard deviation
+
+__global__ void centered_gradient_normalization_kernel(int img_w, int center_x, int center_y, float *abs, float *phi, float *norm)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    const int p = img_w * y + x;
+
+    float grad_abs = abs[p],
+          grad_phi = phi[p];
+
+    float center_phi = atan2f((float)(y - center_y), (float)(x - center_x));
+
+    float phi_diff = grad_phi - center_phi;
+
+    // phi difference is normalized using gaussian function
+    float norm_phi_diff = expf(-(phi_diff * phi_diff) / GAUSS_STD_DEV);
+
+    norm[p] = grad_abs * norm_phi_diff;
+}
+
+extern "C" void cu_centered_gradient_normalization(int img_w, int img_h, int center_x, int center_y, void *gm_abs, void *gm_phi, void *gm_norm)
+{
+    dim3 blocks(img_w / 8, img_h / 8);
+    dim3 threads(8, 8);
+
+    centered_gradient_normalization_kernel<<<blocks, threads>>>(img_w, center_x, center_y, (float *)gm_abs, (float *)gm_phi, (float *)gm_norm);
+}

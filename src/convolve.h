@@ -26,4 +26,6 @@ int cu_gauss_filter(int rad, int img_w, int img_h, void *gm_in, void *gm_out, vo
  */
 int cu_sobel_filter(int img_w, int img_h, void *gm_in, void *gm_hori, void *gm_vert, void *gm_tmp);
 
+void cu_gauss_filter_f11(int img_w, int img_h, void *gm_in, void *gm_out, void *gm_tmp);
+
 #endif // CU_CONVOLVE_H

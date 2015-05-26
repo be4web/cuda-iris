@@ -15,45 +15,6 @@
 #include "unroll.h"
 
 #define PI 3.141592654
-#define MIN_RAD 6
-#define MAX_RAD 100
-
-inline static int fill_accumulator(int16_t *sob_h, int16_t *sob_v, int img_w, int img_h, int x, int y, int rad)
-{
-    int p_dx, p_dy, rad_acc = 0;
-    double phi;
-
-    for (phi = -PI; phi < PI; phi += PI / 120.0) {
-        p_dx = (double)rad * cos(phi);
-        p_dy = (double)rad * sin(phi);
-
-        if (x + p_dx >= 0 && x + p_dx < img_w && y + p_dy >= 0 && y + p_dy < img_h) {
-            int hori = sob_h[(y + p_dy) * img_w + x + p_dx];
-            int vert = sob_v[(y + p_dy) * img_w + x + p_dx];
-
-            if (((hori < 0) ? -hori : hori) > 20 || ((vert < 0) ? -vert : vert) > 20) {
-                double grad = atan2(vert, hori) - phi;
-
-                if (-PI / 12.0 < grad && grad < PI / 12.0)
-                    rad_acc++;
-            }
-        }
-    }
-
-    return rad_acc;
-}
-
-static int *get_hough_radius(int16_t *sob_h, int16_t *sob_v, int img_w, int img_h, int center_x, int center_y)
-{
-    int *radius = malloc(MAX_RAD * sizeof(int));
-    memset(radius, 0, MAX_RAD * sizeof(int));
-
-    int rad;
-    for (rad = MIN_RAD; rad < MAX_RAD; rad += 1)
-        radius[rad] = fill_accumulator(sob_h, sob_v, img_w, img_h, center_x, center_y, rad);
-
-    return radius;
-}
 
 int main(int argc, char *argv[])
 {
@@ -78,7 +39,6 @@ int main(int argc, char *argv[])
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
-    int *histo = malloc(sizeof(int) * 256);
     void *gm_img, *gm_sobel_h, *gm_sobel_v, *gm_sobel_1, *gm_sobel_2, *gm_tmp, *gm_sobel_abs, *gm_sobel_phi;
     size_t sobel_pitch;
 
@@ -95,47 +55,6 @@ int main(int argc, char *argv[])
     cudaMemcpy(gm_tmp, img_d, img_w * img_h * 4, cudaMemcpyHostToDevice);
 
     cu_color_to_gray(img_w, img_h, gm_tmp, gm_img);
-
-    //! Histogram equalization:
-    {
-        cu_histogram(img_w, img_h, gm_img, gm_tmp, histo);
-
-        {
-            FILE *file = fopen("histo.pgm", "w");
-            fprintf(file, "P5\n%d %d\n255\n", 256, 256);
-            int x, y;
-            for (y = 0; y < 256; y++)
-                for (x = 0; x < 256; x++)
-                    fputc((histo[x] / 8 > (256 - y)) ? 255 : 0, file);
-            fclose(file);
-        }
-
-        int tmp[256];
-        uint8_t sub[256];
-        int cdf, i;
-        cdf = 0;
-        for (i = 0; i < 256; i++)
-            tmp[i] = cdf += histo[i];
-        //printf("sub:\n");
-        for (i = 0; i < 256; i++) {
-            sub[i] = tmp[i] * 255 / cdf;
-            //printf("%d ", sub[i]);
-        }
-        //printf("\n\n");
-        cu_pixel_substitute(img_w, img_h, gm_img, gm_tmp, sub);
-
-        {
-            uint8_t *gray_d = malloc(img_w * img_h);
-            cudaMemcpy(gray_d, gm_tmp, img_w * img_h, cudaMemcpyDeviceToHost);
-
-            FILE *file = fopen("equal.pgm", "w");
-            fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
-            int p;
-            for (p = 0; p < img_w * img_h; p++)
-                fputc(gray_d[p], file);
-            fclose(file);
-        }
-    }
 
     //! Gauss Filter:
     if (cu_gauss_filter(11, img_w, img_h, gm_img, gm_img, gm_tmp) < 0)
@@ -201,9 +120,9 @@ int main(int argc, char *argv[])
         fclose(file);
     }
 
-    int center_x, center_y, inner_rad, outer_rad;
+    int center_x, center_y;
 
-    //! Berechnung von Zentrum, innerem und aeusserem Radius:
+    //! Berechnung des Zentrums:
     {
         center_x = 0;
         center_y = 0;
@@ -227,6 +146,7 @@ int main(int argc, char *argv[])
             center_y /= c;
         }
 
+        /*
         int *hough_radius;
         hough_radius = get_hough_radius(sobel_h, sobel_v, img_w, img_h, center_x, center_y);
 
@@ -253,19 +173,218 @@ int main(int argc, char *argv[])
                 if (hough_radius[rad] > hough_radius[inner_rad])
                     inner_rad = rad;
         }
+        */
     }
+
+    float inner_rad[32], outer_rad[32];
+
+    //! Berechnung des inneren und aeusseren Radius:
+    {
+        cu_centered_gradient_normalization(img_w, img_h, center_x, center_y, gm_sobel_1, gm_sobel_2, gm_tmp);
+
+        float *norm;
+        norm = malloc(img_w * img_h * 4);
+
+        cudaMemcpy(norm, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+
+        {
+            FILE *file = fopen("sobel_norm.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+            int p;
+            for (p = 0; p < img_w * img_h; p++)
+                fputc((int)norm[p], file);
+            fclose(file);
+        }
+
+        void *gm_norm, *gm_norm_unr, *gm_tmp_unr;
+        size_t pitch;
+        cudaMallocPitch(&gm_norm, &pitch, img_w * sizeof(float), img_h);
+        cudaMalloc(&gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
+        cudaMalloc(&gm_tmp_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
+
+        cudaMemcpy2D(gm_norm, pitch, gm_tmp, img_w * sizeof(float), img_w * sizeof(float), img_h, cudaMemcpyDeviceToDevice);
+
+        int i;
+        for (i = 0; i < 32; i++) {
+            inner_rad[i] = 6.0;
+            outer_rad[i] = 120.0;
+        }
+
+        cu_unroll(img_w, img_h, pitch, center_x, center_y, inner_rad, outer_rad, gm_norm, gm_norm_unr, gm_tmp);
+
+        cu_gauss_filter_f11(CU_UNROLL_W, CU_UNROLL_H, gm_norm_unr, gm_norm_unr, gm_tmp_unr);
+
+        float *norm_unr;
+        norm_unr = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
+
+        cudaMemcpy(norm_unr, gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4, cudaMemcpyDeviceToHost);
+
+        {
+            FILE *file = fopen("sobel_norm_unrolled.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
+            int p;
+            for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++)
+                fputc((int)norm_unr[p], file);
+            fclose(file);
+        }
+
+        uint8_t *norm_unr_maxima;
+        norm_unr_maxima = malloc(CU_UNROLL_W * CU_UNROLL_H);
+
+        int x, y;
+        for (x = 0; x < CU_UNROLL_W; x++) {
+            float prev, act, next;
+            act = norm_unr[x];
+            next = norm_unr[CU_UNROLL_W + x];
+
+            for (y = 1; y < CU_UNROLL_H - 1; y++) {
+                prev = act;
+                act = next;
+                next = norm_unr[(y + 1) * CU_UNROLL_W + x];
+
+                norm_unr_maxima[y * CU_UNROLL_W + x] = (act > 5.0 && act > prev && act > next) ? 255 : 0;
+            }
+
+            norm_unr_maxima[x] = 0;
+            norm_unr_maxima[(CU_UNROLL_H - 1) * CU_UNROLL_W + x] = 0;
+        }
+
+        {
+            FILE *file = fopen("sobel_norm_maxima.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
+            int p;
+            for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++)
+                fputc(norm_unr_maxima[p], file);
+            fclose(file);
+        }
+
+        int *route_1, *route_2, *act_route;
+        int cost_1, cost_2;
+
+        route_1 = NULL;
+        route_2 = NULL;
+
+        act_route = malloc(CU_UNROLL_W * sizeof(int));
+
+        for (y = 0; y < CU_UNROLL_H; y++) {
+            int on_route = 1,
+                cost = 0,
+                act_y = y;
+
+            for (x = 0; on_route && x < CU_UNROLL_W;) {
+                int dx, next_y;
+                on_route = 0;
+
+                for (dx = 0; dx < 40 && x + dx < CU_UNROLL_W; dx++) {
+                    int dh = dx / 4 + 1;
+
+                    for (next_y = (act_y - dh > 0) ? act_y - dh : 0; next_y <= act_y + dh && next_y < CU_UNROLL_H; next_y++)
+                        if (norm_unr_maxima[next_y * CU_UNROLL_W + x + dx]) {
+                            int i;
+                            for (i = 0; i < dx + 1; i++)
+                                act_route[x + i] = (act_y * (dx + 1 - i) + next_y * i) / (dx + 1);
+
+                            act_y = next_y;
+                            cost += dx;
+                            x += dx + 1;
+                            on_route = 1;
+                            break;
+                        }
+
+                    if (on_route)
+                        break;
+
+                    cost += 10;
+                    dh = dx / 2 + 2;
+
+                    for (next_y = (act_y - dh > 0) ? act_y - dh : 0; next_y <= act_y + dh && next_y < CU_UNROLL_H; next_y++)
+                        if (norm_unr_maxima[next_y * CU_UNROLL_W + x + dx]) {
+                            int i;
+                            for (i = 0; i < dx + 1; i++)
+                                act_route[x + i] = (act_y * (dx + 1 - i) + next_y * i) / (dx + 1);
+
+                            act_y = next_y;
+                            cost += dx;
+                            x += dx + 1;
+                            on_route = 1;
+                            break;
+                        }
+
+                    if (on_route)
+                        break;
+                }
+            }
+
+            if (x + 40 >= CU_UNROLL_W && y == act_y) {
+                for (; x < CU_UNROLL_W; x++)
+                    act_route[x] = act_y;
+
+                printf("trace at y=%d, cost: %d\n", y, cost);
+
+                if (route_1 == NULL) {
+                    route_1 = act_route;
+                    cost_1 = cost;
+                    act_route = malloc(CU_UNROLL_W * sizeof(int));
+                }
+                else if (route_2 == NULL) {
+                    route_2 = act_route;
+                    cost_2 = cost;
+                    act_route = malloc(CU_UNROLL_W * sizeof(int));
+                }
+                else {
+                    if (cost_1 > cost_2) {
+                        if (cost < cost_1) {
+                            route_1 = route_2;
+                            cost_1 = cost_2;
+                            route_2 = act_route;
+                            cost_2 = cost;
+                            act_route = malloc(CU_UNROLL_W * sizeof(int));
+                        }
+                    }
+                    else if (cost < cost_2) {
+                        route_2 = act_route;
+                        cost_2 = cost;
+                        act_route = malloc(CU_UNROLL_W * sizeof(int));
+                    }
+                }
+            }
+        }
+
+        if (route_1 == NULL || route_2 == NULL) {
+            fprintf(stderr, "error: no iris boundaries detected\n");
+            return 2;
+        }
+
+        {
+            FILE *file = fopen("sobel_norm_traced.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
+            int x, y;
+            for (y = 0; y < CU_UNROLL_H; y++)
+                for (x = 0; x < CU_UNROLL_W; x++)
+                    fputc((route_1[x] == y || route_2[x] == y) ? 255 : 0, file);
+            fclose(file);
+        }
+
+        for (i = 0; i < 32; i++) {
+            inner_rad[i] = route_1[i * CU_UNROLL_W / 32] * (120 - 6) / CU_UNROLL_H + 6;
+            outer_rad[i] = route_2[i * CU_UNROLL_W / 32] * (120 - 6) / CU_UNROLL_H + 6;
+        }
+    }
+
+    void *gm_iris;
+    cudaMalloc(&gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4);
 
     //! Aufrollen der Iris:
     {
-        void *gm_img_pitch, *gm_iris;
+        void *gm_img_pitch;
         size_t pitch;
 
         cudaMallocPitch(&gm_img_pitch, &pitch, img_w * 4, img_h);
         cudaMemcpy2D(gm_img_pitch, pitch, img_d, img_w * 4, img_w * 4, img_h, cudaMemcpyHostToDevice);
 
-        cudaMalloc(&gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4);
+        cudaMemset(gm_tmp, 0, img_w * img_h);
 
-        cu_unroll(img_w, img_h, pitch, center_x, center_y, inner_rad, outer_rad, gm_img_pitch, gm_iris);
+        cu_unroll(img_w, img_h, pitch, center_x, center_y, inner_rad, outer_rad, gm_img_pitch, gm_iris, gm_tmp);
 
         uint8_t *iris_d = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
         cudaMemcpy(iris_d, gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4, cudaMemcpyDeviceToHost);
@@ -279,6 +398,74 @@ int main(int argc, char *argv[])
                 fputc(iris_d[p * 4 + 1], file);
                 fputc(iris_d[p * 4 + 2], file);
             }
+            fclose(file);
+        }
+
+        {
+            uint8_t *gray_d = malloc(img_w * img_h);
+            cudaMemcpy(gray_d, gm_tmp, img_w * img_h, cudaMemcpyDeviceToHost);
+
+            int i;
+            for (i = 0; i < 32; i++) {
+                float phi = (float)i * 2.0 * PI / 32.0;
+                gray_d[(center_y + (int)(inner_rad[i] * sin(phi))) * img_w + center_x + (int)(inner_rad[i] * cos(phi))] = 255;
+                gray_d[(center_y + (int)(outer_rad[i] * sin(phi))) * img_w + center_x + (int)(outer_rad[i] * cos(phi))] = 255;
+            }
+
+            FILE *file = fopen("unroll_cut.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+            int p;
+            for (p = 0; p < img_w * img_h; p++)
+                fputc(gray_d[p], file);
+            fclose(file);
+        }
+    }
+
+    void *gm_iris_gray, *gm_iris_tmp;
+    cudaMalloc(&gm_iris_gray, CU_UNROLL_W * CU_UNROLL_H);
+    cudaMalloc(&gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H);
+
+    cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, gm_iris, gm_iris_gray);
+
+    //! Histogram equalization der Iris
+    {
+        int *histo = malloc(sizeof(int) * 256);
+
+        cu_histogram(CU_UNROLL_W, CU_UNROLL_H, gm_iris_gray, gm_iris_tmp, histo);
+
+        {
+            FILE *file = fopen("iris_histo.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", 256, 256);
+            int x, y;
+            for (y = 0; y < 256; y++)
+                for (x = 0; x < 256; x++)
+                    fputc((histo[x] / 8 > (256 - y)) ? 255 : 0, file);
+            fclose(file);
+        }
+
+        int tmp[256];
+        uint8_t sub[256];
+        int cdf, i;
+        cdf = 0;
+        for (i = 0; i < 256; i++)
+            tmp[i] = cdf += histo[i];
+        //printf("sub:\n");
+        for (i = 0; i < 256; i++) {
+            sub[i] = tmp[i] * 255 / cdf;
+            //printf("%d ", sub[i]);
+        }
+        //printf("\n\n");
+        cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, gm_iris_gray, gm_iris_tmp, sub);
+
+        {
+            uint8_t *gray_d = malloc(CU_UNROLL_W * CU_UNROLL_H);
+            cudaMemcpy(gray_d, gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
+
+            FILE *file = fopen("iris_equal.pgm", "w");
+            fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
+            int p;
+            for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++)
+                fputc(gray_d[p], file);
             fclose(file);
         }
     }

@@ -28,4 +28,6 @@ void cu_cart_to_polar(int img_w, int img_h, void *gm_hori, void *gm_vert, void *
 
 void cu_pixel_substitute(int img_w, int img_h, void *gm_in, void *gm_out, uint8_t *sub);
 
+void cu_centered_gradient_normalization(int img_w, int img_h, int center_x, int center_y, void *gm_abs, void *gm_phi, void *gm_norm);
+
 #endif // CU_PIXEL_H
