@@ -131,8 +131,8 @@ DECL_CU_CONVOLUTION_COL(gauss, uint8_t, uint8_t, int, 7, (WARP_SIZE / 4), 4, 4)
 DECL_CU_CONVOLUTION_ROW(gauss, uint8_t, uint8_t, int, 9, 4, (WARP_SIZE / 4), 4)
 DECL_CU_CONVOLUTION_COL(gauss, uint8_t, uint8_t, int, 9, (WARP_SIZE / 4), 4, 4)
 
-DECL_CU_CONVOLUTION_ROW(gauss, uint8_t, uint8_t, int, 11, 6, (WARP_SIZE / 6), 4)
-DECL_CU_CONVOLUTION_COL(gauss, uint8_t, uint8_t, int, 11, (WARP_SIZE / 6), 6, 4)
+DECL_CU_CONVOLUTION_ROW(gauss, uint8_t, uint8_t, int, 11, 8, (WARP_SIZE / 8), 4)
+DECL_CU_CONVOLUTION_COL(gauss, uint8_t, uint8_t, int, 11, (WARP_SIZE / 8), 8, 4)
 
 __constant__ int gauss_mtx_3[3] = { 1, 2, 1 };
 __constant__ int gauss_mtx_5[5] = { 1, 4, 6, 4, 1 };

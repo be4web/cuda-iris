@@ -44,10 +44,11 @@ int main(int argc, char *argv[])
 
     void *gm_color, *gm_gray, *gm_resized, *gm_sobel_h, *gm_sobel_v, *gm_sobel_abs, *gm_sobel_phi, *gm_tmp;
     int pitch32;
-	
-	int resized_w = RESIZED_IMAGE_WIDTH, 
-		resized_h = (resized_w * img_h)/img_w;
-	
+
+    int resized_w = RESIZED_IMAGE_WIDTH,
+        resized_h = (resized_w * img_h)/img_w,
+        resized_p;
+
     {
         struct cudaDeviceProp prop;
         int tex_align;
@@ -56,27 +57,29 @@ int main(int argc, char *argv[])
 
         pitch32 = ((img_w * 4 + tex_align) & ~tex_align) >> 2;
         printf("texture alignment: %d, 32-bit width: %d => pitch: %d, per sample: %d\n", tex_align + 1, img_w * 4, pitch32 * 4, pitch32);
+
+        resized_p = ((resized_w * 4 + tex_align) & ~tex_align) >> 2;
     }
 
     cudaMalloc(&gm_color, pitch32 * img_h * 4);
     cudaMalloc(&gm_gray, img_w * img_h);
-	cudaMalloc(&gm_resized, resized_w * resized_h);
+    cudaMalloc(&gm_resized, resized_w * resized_h);
     cudaMalloc(&gm_sobel_h, resized_w * resized_h * 4);
     cudaMalloc(&gm_sobel_v, resized_w * resized_h * 4);
     cudaMalloc(&gm_sobel_abs, pitch32 * resized_w * 4);
     cudaMalloc(&gm_sobel_phi, pitch32 * resized_h * 4);
-    cudaMalloc(&gm_tmp, pitch32 * resized_h * 4);	
-	
+    cudaMalloc(&gm_tmp, pitch32 * resized_h * 4);
+
     //cudaMemcpy2D(gm_color, pitch32 * 4, img_d, img_s, img_s, img_h, cudaMemcpyHostToDevice);
     int h;
     for (h = 0; h < img_h; h++)
         cudaMemcpy2D((uint8_t *)gm_color + pitch32 * 4 * h, 4, img_d + img_s * h, img_c, img_c, img_w, cudaMemcpyHostToDevice);
 
     cu_color_to_gray(img_w, img_h, pitch32, gm_color, img_w, gm_gray);
-	
-	cu_image_resize (img_w, img_h, img_w, (uint8_t *) gm_gray, resized_w, resized_h, resized_w, gm_resized);
-    
-	{
+
+    cu_image_resize (img_w, img_h, img_w, (uint8_t *) gm_gray, resized_w, resized_h, resized_w, gm_resized);
+
+    {
         uint8_t *gray_d = malloc(resized_w * resized_h);
         cudaMemcpy(gray_d, gm_resized, resized_w * resized_h, cudaMemcpyDeviceToHost);
 
@@ -133,10 +136,10 @@ int main(int argc, char *argv[])
     }
 
     //! Transformation der Gradienten (Sobel) von kartesisch nach polar:
-    cu_cart_to_polar(resized_w, resized_h, resized_w, gm_sobel_h, resized_w, gm_sobel_v, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi);
+    cu_cart_to_polar(resized_w, resized_h, resized_w, gm_sobel_h, resized_w, gm_sobel_v, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi);
 
     //! Hough Transformation:
-    cu_hough(resized_w, resized_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, gm_tmp);
+    cu_hough(resized_w, resized_h, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi, gm_tmp);
 
     int *hough_d = malloc(resized_w * resized_h * 4);
     {
@@ -172,9 +175,6 @@ int main(int argc, char *argv[])
         center_y /= c;
     }
 
-	center_x = ((float) img_w / resized_w) * center_x;
-	center_y = ((float) img_h / resized_h) * center_y;
-	
     printf("center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
@@ -182,26 +182,26 @@ int main(int argc, char *argv[])
     //! Berechnung des inneren und aeusseren Radius:
     {
         float min_rad, max_rad;
-        max_rad = img_h / 2;
+        max_rad = resized_h / 2;
         min_rad = 6.0;
 
         void *gm_norm, *gm_norm_unr, *gm_tmp_unr;
-        cudaMalloc(&gm_norm, pitch32 * img_h * 4);
+        cudaMalloc(&gm_norm, resized_p * resized_h * 4);
         cudaMalloc(&gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
         cudaMalloc(&gm_tmp_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
 
-        cu_centered_gradient_normalization(img_w, img_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, pitch32, gm_norm, center_x, center_y);
+        cu_centered_gradient_normalization(resized_w, resized_h, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi, resized_p, gm_norm, center_x, center_y);
 
         {
-            float *norm = malloc(pitch32 * img_h * 4);
-            cudaMemcpy(norm, gm_norm, pitch32 * img_h * 4, cudaMemcpyDeviceToHost);
+            float *norm = malloc(resized_p * resized_h * 4);
+            cudaMemcpy(norm, gm_norm, resized_p * resized_h * 4, cudaMemcpyDeviceToHost);
 
             FILE *file = fopen("sobel_norm.pgm", "w");
-            fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+            fprintf(file, "P5\n%d %d\n255\n", resized_w, resized_h);
             int x, y;
-            for (y = 0; y < img_h; y++)
-                for (x = 0; x < img_w; x++)
-                    fputc((int)norm[y * pitch32 + x], file);
+            for (y = 0; y < resized_h; y++)
+                for (x = 0; x < resized_w; x++)
+                    fputc((int)norm[y * resized_p + x], file);
             fclose(file);
 
             free(norm);
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
             outer_rad[i] = max_rad;
         }
 
-        cu_unroll(img_w, img_h, pitch32, gm_norm, gm_norm_unr, center_x, center_y, inner_rad, outer_rad, gm_tmp);
+        cu_unroll(resized_w, resized_h, resized_p, gm_norm, gm_norm_unr, center_x, center_y, inner_rad, outer_rad, gm_tmp);
 
         cu_gauss_filter_f11(CU_UNROLL_W, CU_UNROLL_H, gm_norm_unr, gm_norm_unr, gm_tmp_unr);
 
@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
                 int dx, next_y;
                 on_route = 0;
 
-                for (dx = 0; dx < 40 && x + dx < CU_UNROLL_W; dx++) {
+                for (dx = 0; dx < 60 && x + dx < CU_UNROLL_W; dx++) {
                     int dh = dx / 4 + 1;
 
                     for (next_y = (act_y - dh > 0) ? act_y - dh : 0; next_y <= act_y + dh && next_y < CU_UNROLL_H; next_y++)
@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if (x + 40 >= CU_UNROLL_W && y == act_y) {
+            if (x + 60 >= CU_UNROLL_W && y == act_y) {
                 for (; x < CU_UNROLL_W; x++)
                     act_route[x] = act_y;
 
@@ -386,6 +386,15 @@ int main(int argc, char *argv[])
         cudaFree(gm_norm);
         cudaFree(gm_norm_unr);
         cudaFree(gm_tmp_unr);
+    }
+
+    center_x = ((float)img_w / resized_w) * center_x;
+    center_y = ((float)img_h / resized_h) * center_y;
+
+    int i;
+    for (i = 0; i < 32; i++) {
+        inner_rad[i] = ((float)img_w / resized_w) * inner_rad[i];
+        outer_rad[i] = ((float)img_w / resized_w) * outer_rad[i];
     }
 
     void *gm_iris;
