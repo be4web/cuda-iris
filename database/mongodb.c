@@ -2,7 +2,7 @@
 #include <bson.h>
 #include <mongoc.h>
 
-
+#include "database.h"
 
 int main(int argc,char *argv[]) {
   
@@ -24,25 +24,18 @@ int main(int argc,char *argv[]) {
     client = mongoc_client_new ("mongodb://localhost:27017/");
     collection = mongoc_client_get_collection (client, "test", "test");
 
+
 	/* mongodb insert */
-    doc = bson_new();
-    bson_oid_init (&oid, NULL);
-    BSON_APPEND_OID (doc, "ID", &oid);
-    char *datastring = "longstringthatshoulbesearchedFFFFFFFFFFFddajfnkejfnkjdsvnkjbnvkejbfkjbekfjbdskjvkj";
-    BSON_APPEND_UTF8 (doc, "1234567890", datastring);
-
-    if (!mongoc_collection_insert (collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
-        printf ("Insert error %s\n", error.message);
-    }else{
-		printf("Insert success\n");
-	}
-
-    bson_destroy(doc);
+	
+	insert_data_database( collection, "longstringthatshoulbesearchedFFFFFFFFFFFddajfnkejfnkjdsvnkjbnvkejbfkjbekfjbdskjvkj", "1234567890");
     
     /*mongodb search like*/
     
     query = bson_new();
-    cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query,NULL,NULL);
+    mongoc_collection_t *collection1;
+    collection1 = mongoc_client_get_collection(client,"1234567890","dda");
+    
+    cursor = mongoc_collection_find(collection1, MONGOC_QUERY_NONE,0,0,0,query,NULL,NULL);
     
     /*move query cursor*/
     printf("Search all documents in database 'test'\n");
@@ -52,19 +45,10 @@ int main(int argc,char *argv[]) {
 		bson_free(str);
 	}
 	bson_destroy(query);
+	printf("******END SEARCH********");
     /* mongodb execute collStats command */
-    bson_t *command;
-    bson_t reply;
-    
-    command = BCON_NEW("collStats",BCON_UTF8("test"));
-    if(mongoc_collection_command_simple(collection,command, NULL, &reply, &error))
-    {
-		str = bson_as_json(&reply, NULL);
-		printf("%s\n",str);
-		bson_free(str);
-	}else{
-		printf("Failed to run command %s\n",error.message);
-	}
+   
+	exec_command_database(collection,"collStats","test");
     
     /* mongodb delete*/
     doc = bson_new ();
