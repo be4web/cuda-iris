@@ -92,3 +92,20 @@ extern "C" void cu_centered_gradient_normalization(int img_w, int img_h, int abs
 
     centered_gradient_normalization_kernel<<<blocks, threads>>>(abs_p, (float *)gm_abs, phi_p, (float *)gm_phi, norm_p, (float *)gm_norm, center_x, center_y);
 }
+
+__global__ void image_resize_kernel(int src_p, uint8_t *src, int dst_p, uint8_t *dst, int img_w, int img_h) {
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+	const float x_ratio = (float) img_w / (gridDim.x * blockDim.x);
+	const float y_ratio = (float) img_h / (gridDim.y * blockDim.y);
+	const int px = (int) floor((float) x * x_ratio), py = (int) floor((float) y * y_ratio);
+
+	dst[x + y * dst_p] = src[src_p * py + px];	
+}
+
+extern "C" void cu_image_resize(int img_w, int img_h, int src_p, void *gm_src, int dst_w, int dst_h, int dst_p, void *gm_dst) {
+	dim3 blocks(dst_w / 8, dst_h / 8);
+	dim3 threads(8, 8);
+	image_resize_kernel<<<blocks, threads>>>(src_p, (uint8_t *) gm_src, dst_p, (uint8_t *) gm_dst, img_w, img_h);
+
+}

@@ -36,4 +36,6 @@ void cu_pixel_substitute(int img_w, int img_h, int in_p, void *gm_in, int out_p,
 
 void cu_centered_gradient_normalization(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, int norm_p, void *gm_norm, int center_x, int center_y);
 
+void cu_image_resize(int img_w, int img_h, int src_p, void *gm_src, int dst_w, int dst_h, int dst_p, void *gm_dst);
+	
 #endif // CU_PIXEL_H

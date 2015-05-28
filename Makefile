@@ -1,7 +1,7 @@
 # Cuda1
 
 PROG = cuda1
-TESTFILE = test.gif
+TESTFILE = src/test3.png
 OBJECTS = cuda1.o
 
 CFLAGS = -D_REENTRANT -I/usr/local/Cellar/gdk-pixbuf/2.30.8/include/gdk-pixbuf-2.0 -I/usr/local/Cellar/libpng/1.6.17/include/libpng16 -I/usr/local/Cellar/glib/2.44.0/include/glib-2.0 -I/usr/local/Cellar/glib/2.44.0/lib/glib-2.0/include -I/usr/local/opt/gettext/include 

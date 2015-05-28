@@ -15,6 +15,7 @@
 #include "unroll.h"
 
 #define PI 3.141592654
+#define RESIZED_IMAGE_WIDTH 256
 
 int main(int argc, char *argv[])
 {
@@ -41,9 +42,12 @@ int main(int argc, char *argv[])
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
-    void *gm_color, *gm_gray, *gm_sobel_h, *gm_sobel_v, *gm_sobel_abs, *gm_sobel_phi, *gm_tmp;
+    void *gm_color, *gm_gray, *gm_resized, *gm_sobel_h, *gm_sobel_v, *gm_sobel_abs, *gm_sobel_phi, *gm_tmp;
     int pitch32;
-
+	
+	int resized_w = RESIZED_IMAGE_WIDTH, 
+		resized_h = (resized_w * img_h)/img_w;
+	
     {
         struct cudaDeviceProp prop;
         int tex_align;
@@ -56,31 +60,48 @@ int main(int argc, char *argv[])
 
     cudaMalloc(&gm_color, pitch32 * img_h * 4);
     cudaMalloc(&gm_gray, img_w * img_h);
-    cudaMalloc(&gm_sobel_h, img_w * img_h * 4);
-    cudaMalloc(&gm_sobel_v, img_w * img_h * 4);
-    cudaMalloc(&gm_sobel_abs, pitch32 * img_h * 4);
-    cudaMalloc(&gm_sobel_phi, pitch32 * img_h * 4);
-    cudaMalloc(&gm_tmp, pitch32 * img_h * 4);
-
+	cudaMalloc(&gm_resized, resized_w * resized_h);
+    cudaMalloc(&gm_sobel_h, resized_w * resized_h * 4);
+    cudaMalloc(&gm_sobel_v, resized_w * resized_h * 4);
+    cudaMalloc(&gm_sobel_abs, pitch32 * resized_w * 4);
+    cudaMalloc(&gm_sobel_phi, pitch32 * resized_h * 4);
+    cudaMalloc(&gm_tmp, pitch32 * resized_h * 4);	
+	
     //cudaMemcpy2D(gm_color, pitch32 * 4, img_d, img_s, img_s, img_h, cudaMemcpyHostToDevice);
     int h;
     for (h = 0; h < img_h; h++)
         cudaMemcpy2D((uint8_t *)gm_color + pitch32 * 4 * h, 4, img_d + img_s * h, img_c, img_c, img_w, cudaMemcpyHostToDevice);
 
     cu_color_to_gray(img_w, img_h, pitch32, gm_color, img_w, gm_gray);
+	
+	cu_image_resize (img_w, img_h, img_w, (uint8_t *) gm_gray, resized_w, resized_h, resized_w, gm_resized);
+    
+	{
+        uint8_t *gray_d = malloc(resized_w * resized_h);
+        cudaMemcpy(gray_d, gm_resized, resized_w * resized_h, cudaMemcpyDeviceToHost);
+
+        FILE *file = fopen("resized.pgm", "w");
+        fprintf(file, "P5\n%d %d\n255\n", resized_w, resized_h);
+        int p;
+        for (p = 0; p < resized_w * resized_h; p++)
+            fputc(gray_d[p], file);
+        fclose(file);
+
+        free(gray_d);
+    }
 
     //! Gauss Filter:
-    if (cu_gauss_filter(11, img_w, img_h, gm_gray, gm_gray, gm_tmp) < 0)
+    if (cu_gauss_filter(11, resized_w, resized_h, gm_resized, gm_resized, gm_tmp) < 0)
         fprintf(stderr, "error applying gauss filter\n");
 
     {
-        uint8_t *gray_d = malloc(img_w * img_h);
-        cudaMemcpy(gray_d, gm_gray, img_w * img_h, cudaMemcpyDeviceToHost);
+        uint8_t *gray_d = malloc(resized_w * resized_h);
+        cudaMemcpy(gray_d, gm_resized, resized_w * resized_h, cudaMemcpyDeviceToHost);
 
         FILE *file = fopen("gauss.pgm", "w");
-        fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+        fprintf(file, "P5\n%d %d\n255\n", resized_w, resized_h);
         int p;
-        for (p = 0; p < img_w * img_h; p++)
+        for (p = 0; p < resized_w * resized_h; p++)
             fputc(gray_d[p], file);
         fclose(file);
 
@@ -88,19 +109,19 @@ int main(int argc, char *argv[])
     }
 
     //! Sobel Filter:
-    cu_sobel_filter(img_w, img_h, gm_gray, gm_sobel_h, gm_sobel_v, gm_tmp);
+    cu_sobel_filter(resized_w, resized_h, gm_resized, gm_sobel_h, gm_sobel_v, gm_tmp);
 
     {
         int16_t *sobel_h, *sobel_v;
-        sobel_h = malloc(img_w * img_h * 2);
-        sobel_v = malloc(img_w * img_h * 2);
-        cudaMemcpy(sobel_h, gm_sobel_h, img_w * img_h * 2, cudaMemcpyDeviceToHost);
-        cudaMemcpy(sobel_v, gm_sobel_v, img_w * img_h * 2, cudaMemcpyDeviceToHost);
+        sobel_h = malloc(resized_w * resized_h * 2);
+        sobel_v = malloc(resized_w * resized_h * 2);
+        cudaMemcpy(sobel_h, gm_sobel_h, resized_w * resized_h * 2, cudaMemcpyDeviceToHost);
+        cudaMemcpy(sobel_v, gm_sobel_v, resized_w * resized_h * 2, cudaMemcpyDeviceToHost);
 
         FILE *file = fopen("sobel.ppm", "w");
-        fprintf(file, "P6\n%d %d\n255\n", img_w, img_h);
+        fprintf(file, "P6\n%d %d\n255\n", resized_w, resized_h);
         int p;
-        for (p = 0; p < img_w * img_h; p++) {
+        for (p = 0; p < resized_w * resized_h; p++) {
             fputc((sobel_h[p] >> 1) + 128, file);
             fputc(0, file);
             fputc((sobel_v[p] >> 1) + 128, file);
@@ -112,20 +133,20 @@ int main(int argc, char *argv[])
     }
 
     //! Transformation der Gradienten (Sobel) von kartesisch nach polar:
-    cu_cart_to_polar(img_w, img_h, img_w, gm_sobel_h, img_w, gm_sobel_v, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi);
+    cu_cart_to_polar(resized_w, resized_h, resized_w, gm_sobel_h, resized_w, gm_sobel_v, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi);
 
     //! Hough Transformation:
-    cu_hough(img_w, img_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, gm_tmp);
+    cu_hough(resized_w, resized_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, gm_tmp);
 
-    int *hough_d = malloc(img_w * img_h * 4);
+    int *hough_d = malloc(resized_w * resized_h * 4);
     {
         //int *hough_d = malloc(img_w * img_h * 4);
-        cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+        cudaMemcpy(hough_d, gm_tmp, resized_w * resized_h * 4, cudaMemcpyDeviceToHost);
 
         FILE *file = fopen("hough.pgm", "w");
-        fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+        fprintf(file, "P5\n%d %d\n255\n",resized_w, resized_h);
         int p, v;
-        for (p = 0; p < img_w * img_h; p++) {
+        for (p = 0; p < resized_w * resized_h; p++) {
             v = hough_d[p] >> 16;
             fputc((v > 255) ? 255 : v, file);
         }
@@ -140,9 +161,9 @@ int main(int argc, char *argv[])
     //cu_center_detection(img_w, img_h, gm_tmp, &center_x, &center_y);
     {
         int x, y, c = 0;
-        for (x = 0; x < img_w; x++)
-            for (y = 0; y < img_h; y++)
-                if (hough_d[y * img_w + x] > (1 << 22)) {
+        for (x = 0; x < resized_w; x++)
+            for (y = 0; y < resized_h; y++)
+                if (hough_d[y * resized_w + x] > (1 << 22)) {
                     center_x += x;
                     center_y += y;
                     c++;
@@ -151,6 +172,9 @@ int main(int argc, char *argv[])
         center_y /= c;
     }
 
+	center_x = ((float) img_w / resized_w) * center_x;
+	center_y = ((float) img_h / resized_h) * center_y;
+	
     printf("center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
