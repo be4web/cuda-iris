@@ -11,7 +11,7 @@ extern "C" {
 
 // diff should be a multiple of 2 to exploit warp size efficiently (> 32)
 #define MIN_RAD 6
-#define MAX_RAD 262
+#define MAX_RAD 500//262
 #define PI 3.141592654
 
 #define THREAD_COUNT (MAX_RAD - MIN_RAD)

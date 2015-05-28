@@ -4,4 +4,6 @@ cuda1
 *.png
 *.ppm
 *.gif
+*.jpg
+*.png
 .DS_STORE

@@ -1,7 +1,7 @@
 # Convolve
 
 PROG = convolve
-TESTFILE = test.gif
+TESTFILE = test3.png
 OBJECTS = main.o convolve.co pixel.co histogram.co hough.co unroll.co
 
 all: $(PROG)

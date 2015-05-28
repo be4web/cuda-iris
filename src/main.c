@@ -27,15 +27,17 @@ int main(int argc, char *argv[])
     }
 
     if ((img = gdk_pixbuf_new_from_file(argv[1], &err)) == NULL) {
-        fprintf(stderr, "error loading\n");
+        fprintf(stderr, "error loading image file: %s\n", err->message);
         return 2;
     }
 
     int img_w = gdk_pixbuf_get_width(img),
-        img_h = gdk_pixbuf_get_height(img);
-        //img_s = gdk_pixbuf_get_rowstride(img),
-        //img_c = gdk_pixbuf_get_n_channels(img),
-        //img_b = gdk_pixbuf_get_bits_per_sample(img);
+        img_h = gdk_pixbuf_get_height(img),
+        img_s = gdk_pixbuf_get_rowstride(img),
+        img_c = gdk_pixbuf_get_n_channels(img),
+        img_b = gdk_pixbuf_get_bits_per_sample(img);
+
+    printf("image prop: w: %d, h: %d, s: %d, c: %d, b %d\n", img_w, img_h, img_s, img_c, img_b);
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
@@ -60,7 +62,10 @@ int main(int argc, char *argv[])
     cudaMalloc(&gm_sobel_phi, pitch32 * img_h * 4);
     cudaMalloc(&gm_tmp, pitch32 * img_h * 4);
 
-    cudaMemcpy2D(gm_color, pitch32 * 4, img_d, img_w * 4, img_w * 4, img_h, cudaMemcpyHostToDevice);
+    //cudaMemcpy2D(gm_color, pitch32 * 4, img_d, img_s, img_s, img_h, cudaMemcpyHostToDevice);
+    int h;
+    for (h = 0; h < img_h; h++)
+        cudaMemcpy2D((uint8_t *)gm_color + pitch32 * 4 * h, 4, img_d + img_s * h, img_c, img_c, img_w, cudaMemcpyHostToDevice);
 
     cu_color_to_gray(img_w, img_h, pitch32, gm_color, img_w, gm_gray);
 
@@ -112,8 +117,9 @@ int main(int argc, char *argv[])
     //! Hough Transformation:
     cu_hough(img_w, img_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, gm_tmp);
 
+    int *hough_d = malloc(img_w * img_h * 4);
     {
-        int *hough_d = malloc(img_w * img_h * 4);
+        //int *hough_d = malloc(img_w * img_h * 4);
         cudaMemcpy(hough_d, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
 
         FILE *file = fopen("hough.pgm", "w");
@@ -125,19 +131,36 @@ int main(int argc, char *argv[])
         }
         fclose(file);
 
-        free(hough_d);
+        //free(hough_d);
     }
 
     int center_x, center_y;
 
     //! Berechnung des Zentrums:
-    cu_center_detection(img_w, img_h, gm_tmp, &center_x, &center_y);
+    //cu_center_detection(img_w, img_h, gm_tmp, &center_x, &center_y);
+    {
+        int x, y, c = 0;
+        for (x = 0; x < img_w; x++)
+            for (y = 0; y < img_h; y++)
+                if (hough_d[y * img_w + x] > (1 << 22)) {
+                    center_x += x;
+                    center_y += y;
+                    c++;
+                }
+        center_x /= c;
+        center_y /= c;
+    }
+
     printf("center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
 
     //! Berechnung des inneren und aeusseren Radius:
     {
+        float min_rad, max_rad;
+        max_rad = img_h / 2;
+        min_rad = 6.0;
+
         void *gm_norm, *gm_norm_unr, *gm_tmp_unr;
         cudaMalloc(&gm_norm, pitch32 * img_h * 4);
         cudaMalloc(&gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
@@ -146,14 +169,15 @@ int main(int argc, char *argv[])
         cu_centered_gradient_normalization(img_w, img_h, pitch32, gm_sobel_abs, pitch32, gm_sobel_phi, pitch32, gm_norm, center_x, center_y);
 
         {
-            float *norm = malloc(img_w * img_h * 4);
-            cudaMemcpy(norm, gm_tmp, img_w * img_h * 4, cudaMemcpyDeviceToHost);
+            float *norm = malloc(pitch32 * img_h * 4);
+            cudaMemcpy(norm, gm_norm, pitch32 * img_h * 4, cudaMemcpyDeviceToHost);
 
             FILE *file = fopen("sobel_norm.pgm", "w");
             fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
-            int p;
-            for (p = 0; p < img_w * img_h; p++)
-                fputc((int)norm[p], file);
+            int x, y;
+            for (y = 0; y < img_h; y++)
+                for (x = 0; x < img_w; x++)
+                    fputc((int)norm[y * pitch32 + x], file);
             fclose(file);
 
             free(norm);
@@ -161,8 +185,8 @@ int main(int argc, char *argv[])
 
         int i;
         for (i = 0; i < 32; i++) {
-            inner_rad[i] = 6.0;
-            outer_rad[i] = 120.0;
+            inner_rad[i] = min_rad;
+            outer_rad[i] = max_rad;
         }
 
         cu_unroll(img_w, img_h, pitch32, gm_norm, gm_norm_unr, center_x, center_y, inner_rad, outer_rad, gm_tmp);
@@ -325,8 +349,8 @@ int main(int argc, char *argv[])
         }
 
         for (i = 0; i < 32; i++) {
-            inner_rad[i] = route_1[i * CU_UNROLL_W / 32] * (120 - 6) / CU_UNROLL_H + 6;
-            outer_rad[i] = route_2[i * CU_UNROLL_W / 32] * (120 - 6) / CU_UNROLL_H + 6;
+            inner_rad[i] = route_1[i * CU_UNROLL_W / 32] * (max_rad - min_rad) / CU_UNROLL_H + 6;
+            outer_rad[i] = route_2[i * CU_UNROLL_W / 32] * (max_rad - min_rad) / CU_UNROLL_H + 6;
         }
 
         free(route_1);
