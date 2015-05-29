@@ -14,12 +14,12 @@ __global__ void color_to_gray_kernel(int color_p, uint32_t *color, int gray_p, u
     gray[gray_p * y + x] = ((clr & 0xff) * coeff_r + ((clr >> 8) & 0xff) * coeff_g + ((clr >> 16) & 0xff) * coeff_b) / div;
 }
 
-extern "C" void cu_color_to_gray(int img_w, int img_h, int color_p, void *gm_color, int gray_p, void *gm_gray)
+extern "C" void cu_color_to_gray(int img_w, int img_h, int color_p, void *gm_color, int gray_p, void *gm_gray, int coeff_r, int coeff_g, int coeff_b)
 {
     dim3 blocks(img_w / 8, img_h / 8);
     dim3 threads(8, 8);
 
-    color_to_gray_kernel<<<blocks, threads>>>(color_p, (uint32_t *)gm_color, gray_p, (uint8_t *)gm_gray, 1, 1, 1);
+    color_to_gray_kernel<<<blocks, threads>>>(color_p, (uint32_t *)gm_color, gray_p, (uint8_t *)gm_gray, coeff_r, coeff_g, coeff_b);
 }
 
 __global__ void cart_to_polar_kernel(int hori_p, int16_t *hori, int vert_p, int16_t *vert, int abs_p, float *abs, int phi_p, float *phi)
@@ -96,16 +96,16 @@ extern "C" void cu_centered_gradient_normalization(int img_w, int img_h, int abs
 __global__ void image_resize_kernel(int src_p, uint8_t *src, int dst_p, uint8_t *dst, int img_w, int img_h) {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
-	const float x_ratio = (float) img_w / (gridDim.x * blockDim.x);
-	const float y_ratio = (float) img_h / (gridDim.y * blockDim.y);
-	const int px = (int) floor((float) x * x_ratio), py = (int) floor((float) y * y_ratio);
+    const float x_ratio = (float) img_w / (gridDim.x * blockDim.x);
+    const float y_ratio = (float) img_h / (gridDim.y * blockDim.y);
+    const int px = (int) floor((float) x * x_ratio), py = (int) floor((float) y * y_ratio);
 
-	dst[x + y * dst_p] = src[src_p * py + px];	
+    dst[x + y * dst_p] = src[src_p * py + px];
 }
 
 extern "C" void cu_image_resize(int img_w, int img_h, int src_p, void *gm_src, int dst_w, int dst_h, int dst_p, void *gm_dst) {
-	dim3 blocks(dst_w / 8, dst_h / 8);
-	dim3 threads(8, 8);
-	image_resize_kernel<<<blocks, threads>>>(src_p, (uint8_t *) gm_src, dst_p, (uint8_t *) gm_dst, img_w, img_h);
+    dim3 blocks(dst_w / 8, dst_h / 8);
+    dim3 threads(8, 8);
+    image_resize_kernel<<<blocks, threads>>>(src_p, (uint8_t *) gm_src, dst_p, (uint8_t *) gm_dst, img_w, img_h);
 
 }

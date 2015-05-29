@@ -7,15 +7,16 @@ extern "C" {
 /****** PARAMETERS ********/
 #define MARGIN 20
 // needs to be a power of 2 as well
-#define STEP_SIZE 2
+//#define STEP_SIZE 2
+#define RAD_COUNT 32
 
 // diff should be a multiple of 2 to exploit warp size efficiently (> 32)
-#define MIN_RAD 6
-#define MAX_RAD 500//262
+//#define MIN_RAD 6
+//#define MAX_RAD 500//262
 #define PI 3.141592654
 
-#define THREAD_COUNT (MAX_RAD - MIN_RAD)
-#define WARP_SIZE 32
+//#define THREAD_COUNT (MAX_RAD - MIN_RAD)
+//#define WARP_SIZE 32
 
 texture<float, cudaTextureType2D> phi_tex;
 texture<float, cudaTextureType2D> abs_tex;
@@ -52,19 +53,21 @@ int blockReduceSum(int val) {
   return val;
 }
 
-__global__ void hough_transform(int *result) {
+__global__ void hough_transform(int result_p, int *result, float min_rad, float max_rad) {
 
     float dx, dy;
     int radius_index = threadIdx.x;
-    float rad = MIN_RAD + radius_index + STEP_SIZE;
+    float rad = min_rad + (float)radius_index * (max_rad - min_rad) / (float)RAD_COUNT;
     int x = MARGIN + blockIdx.x;
     int y = MARGIN + blockIdx.y;
-    int width = MARGIN + gridDim.x;
+    //int width = MARGIN + gridDim.x;
 
 
     int local_acc = int(0);
 
     int phi;
+
+#pragma unroll
     for (phi = -120; phi < 120; phi++) {
         float phi_f = (float)phi * PI / 120.0;
 
@@ -82,13 +85,13 @@ __global__ void hough_transform(int *result) {
     local_acc = blockReduceSum(local_acc * local_acc * local_acc);
 
     if (threadIdx.x == 0)
-        result[width * y + x] = local_acc;
+        result[result_p * y + x] = local_acc;
 
 }
 
 #include <stdio.h>
 
-extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, void *gm_hough)
+extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, int hough_p, void *gm_hough, float min_rad, float max_rad)
 {
     cudaEvent_t start, stop;
 
@@ -104,10 +107,10 @@ extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_
 
     cudaEventRecord(start);
 
-    dim3 grid(img_w - MARGIN, img_h - MARGIN);
-    dim3 threads(THREAD_COUNT/STEP_SIZE);
+    dim3 grid(img_w - (2 * MARGIN), img_h - (2 * MARGIN));
+    dim3 threads(RAD_COUNT);
 
-    hough_transform<<<grid, threads>>>((int *)gm_hough);
+    hough_transform<<<grid, threads>>>(hough_p, (int *)gm_hough, min_rad, max_rad);
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);

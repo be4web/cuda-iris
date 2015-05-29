@@ -15,8 +15,11 @@
  * gm_color: graphic memory for color input data (32 bit wide)
  * gray_p: pitch of the gray output data
  * gm_gray: graphic memory for gray output data (8 bit wide)
+ * coeff_r:
+ * coeff_g:
+ * coeff_b:
  */
-void cu_color_to_gray(int img_w, int img_h, int color_p, void *gm_color, int gray_p, void *gm_gray);
+void cu_color_to_gray(int img_w, int img_h, int color_p, void *gm_color, int gray_p, void *gm_gray, int coeff_r, int coeff_g, int coeff_b);
 
 /*!
  * img_w: image width
@@ -37,5 +40,5 @@ void cu_pixel_substitute(int img_w, int img_h, int in_p, void *gm_in, int out_p,
 void cu_centered_gradient_normalization(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, int norm_p, void *gm_norm, int center_x, int center_y);
 
 void cu_image_resize(int img_w, int img_h, int src_p, void *gm_src, int dst_w, int dst_h, int dst_p, void *gm_dst);
-	
+
 #endif // CU_PIXEL_H

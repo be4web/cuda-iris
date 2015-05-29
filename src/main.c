@@ -75,8 +75,7 @@ int main(int argc, char *argv[])
     for (h = 0; h < img_h; h++)
         cudaMemcpy2D((uint8_t *)gm_color + pitch32 * 4 * h, 4, img_d + img_s * h, img_c, img_c, img_w, cudaMemcpyHostToDevice);
 
-    cu_color_to_gray(img_w, img_h, pitch32, gm_color, img_w, gm_gray);
-
+    cu_color_to_gray(img_w, img_h, pitch32, gm_color, img_w, gm_gray, 17, 2, 1);
     cu_image_resize (img_w, img_h, img_w, (uint8_t *) gm_gray, resized_w, resized_h, resized_w, gm_resized);
 
     {
@@ -139,7 +138,7 @@ int main(int argc, char *argv[])
     cu_cart_to_polar(resized_w, resized_h, resized_w, gm_sobel_h, resized_w, gm_sobel_v, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi);
 
     //! Hough Transformation:
-    cu_hough(resized_w, resized_h, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi, gm_tmp);
+    cu_hough(resized_w, resized_h, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi, resized_w, gm_tmp, 6.0, resized_h / 2);
 
     int *hough_d = malloc(resized_w * resized_h * 4);
     {
@@ -449,7 +448,7 @@ int main(int argc, char *argv[])
     cudaMalloc(&gm_iris_gray, CU_UNROLL_W * CU_UNROLL_H);
     cudaMalloc(&gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H);
 
-    cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris, CU_UNROLL_W, gm_iris_gray);
+    cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris, CU_UNROLL_W, gm_iris_gray, 1, 4, 2);
 
     //! Histogram equalization der Iris
     {
