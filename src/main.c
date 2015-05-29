@@ -140,9 +140,8 @@ int main(int argc, char *argv[])
     //! Hough Transformation:
     cu_hough(resized_w, resized_h, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi, resized_w, gm_tmp, 6.0, resized_h / 2);
 
-    int *hough_d = malloc(resized_w * resized_h * 4);
     {
-        //int *hough_d = malloc(img_w * img_h * 4);
+        int *hough_d = malloc(img_w * img_h * 4);
         cudaMemcpy(hough_d, gm_tmp, resized_w * resized_h * 4, cudaMemcpyDeviceToHost);
 
         FILE *file = fopen("hough.pgm", "w");
@@ -154,26 +153,14 @@ int main(int argc, char *argv[])
         }
         fclose(file);
 
-        //free(hough_d);
+        free(hough_d);
     }
 
     int center_x, center_y;
 
     //! Berechnung des Zentrums:
-    //cu_center_detection(resized_w, resized_h, gm_tmp, &center_x, &center_y);
-    {
-        int x, y, c = 0;
-        for (x = 0; x < resized_w; x++)
-            for (y = 0; y < resized_h; y++)
-                if (hough_d[y * resized_w + x] > (1 << 22)) {
-                    center_x += x;
-                    center_y += y;
-                    c++;
-                }
-        center_x /= c;
-        center_y /= c;
-    }
-	
+    cu_center_detection(resized_w, resized_h, gm_tmp, &center_x, &center_y);
+
     printf("center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
