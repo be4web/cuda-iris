@@ -10,8 +10,9 @@ ifeq ($(shell uname -s),Linux)
 	CUDA_LIB_PATH := /opt/cuda/lib64/
 	NVCC := nvcc
 else
-	CUDA_INCL_PATH := /Developer/NVIDIA/CUDA-7.0/include/
-	CUDA_LIB_PATH := /Developer/NVIDIA/CUDA-7.0/lib/
+	CUDA_PATH := /Developer/NVIDIA/CUDA-7.0
+	CUDA_INCL_PATH := $(CUDA_PATH)/include/
+	CUDA_LIB_PATH := $(CUDA_PATH)//lib/
 	NVCC := $(CUDA_PATH)/bin/nvcc
 endif
 

@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
     int center_x, center_y;
 
     //! Berechnung des Zentrums:
-    //cu_center_detection(img_w, img_h, gm_tmp, &center_x, &center_y);
+    //cu_center_detection(resized_w, resized_h, gm_tmp, &center_x, &center_y);
     {
         int x, y, c = 0;
         for (x = 0; x < resized_w; x++)
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
         center_x /= c;
         center_y /= c;
     }
-
+	
     printf("center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
