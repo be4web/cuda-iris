@@ -13,6 +13,7 @@
 #include "histogram.h"
 #include "hough.h"
 #include "unroll.h"
+#include "gabor.h"
 
 #define PI 3.141592654
 #define RESIZED_IMAGE_WIDTH 256
@@ -437,6 +438,8 @@ int main(int argc, char *argv[])
 
     cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris, CU_UNROLL_W, gm_iris_gray, 1, 4, 2);
 
+    uint8_t *gray_d = malloc(CU_UNROLL_W * CU_UNROLL_H);
+
     //! Histogram equalization der Iris
     {
         int *histo = malloc(sizeof(int) * 256);
@@ -467,9 +470,11 @@ int main(int argc, char *argv[])
         //printf("\n\n");
         cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, CU_UNROLL_W, gm_iris_tmp, sub);
 
+        cudaMemcpy(gray_d, gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
+
         {
-            uint8_t *gray_d = malloc(CU_UNROLL_W * CU_UNROLL_H);
-            cudaMemcpy(gray_d, gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
+            //uint8_t *gray_d = malloc(CU_UNROLL_W * CU_UNROLL_H);
+            //cudaMemcpy(gray_d, gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
 
             FILE *file = fopen("iris_equal.pgm", "w");
             fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
@@ -478,7 +483,22 @@ int main(int argc, char *argv[])
                 fputc(gray_d[p], file);
             fclose(file);
 
-            free(gray_d);
+            //free(gray_d);
+        }
+    }
+
+    //! Gabor
+    {
+        uint8_t gabor_pattern[256];
+
+        generate_gabor_pattern(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gray_d, gabor_pattern);
+
+        {
+            printf("gabor pattern:\n");
+            int i;
+            for (i = 0; i < 256; i++)
+                printf("%02x", gabor_pattern[i]);
+            printf("\n");
         }
     }
 

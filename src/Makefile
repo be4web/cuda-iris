@@ -2,7 +2,7 @@
 
 PROG = iris
 TESTFILE = test3.png
-OBJECTS = main.o convolve.co pixel.co histogram.co hough.co unroll.co
+OBJECTS = main.o gabor.o convolve.co pixel.co histogram.co hough.co unroll.co
 
 # CUDA Toolkit location
 ifeq ($(shell uname -s),Linux)
