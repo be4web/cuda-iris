@@ -4,7 +4,7 @@
  * Arguments: Collection, Command String and Argument for the Command
  * 
  ***/
-void exec_command_database(mongoc_collection_t *collection, char *command_string, char *argument)
+void exec_database_command_database(mongoc_collection_t *collection, char *command_string, char *argument)
 {
     bson_error_t error;
     bson_t *command;
@@ -13,6 +13,28 @@ void exec_command_database(mongoc_collection_t *collection, char *command_string
     
     command = BCON_NEW (command_string, BCON_UTF8 (argument));
     if (mongoc_collection_command_simple (collection, command, NULL, &reply, &error)) {
+        str = bson_as_json (&reply, NULL);
+        printf ("%s\n", str);
+        bson_free (str);
+    } else {
+        fprintf (stderr, "Failed to run command: %s\n", error.message);
+    }
+}
+
+/***
+ * Execute a arbitary client command
+ * Arguments: client, Database Name, Command String and Argument for the Command
+ * 
+ ***/
+void exec_client_command_database(mongoc_client_t *client,char *database_name, char *command_string, char *argument)
+{
+    bson_error_t error;
+    bson_t *command;
+    bson_t reply;
+    char *str;                /* reply string */
+    
+    command = BCON_NEW (command_string, BCON_UTF8 (argument));
+    if (mongoc_client_command_simple(client, database_name, command, NULL, &reply, &error)) {
         str = bson_as_json (&reply, NULL);
         printf ("%s\n", str);
         bson_free (str);
@@ -37,7 +59,7 @@ void insert_data_database(mongoc_collection_t *collection, char *datastring, cha
     
     doc = bson_new();
     bson_oid_init (&oid, NULL);
-    BSON_APPEND_OID (doc, "ID", &oid);    
+    BSON_APPEND_OID (doc, "_id", &oid);    
     BSON_APPEND_UTF8 (doc, subkey, datastring);
 
     if (!mongoc_collection_insert (collection, MONGOC_INSERT_NONE, doc, NULL, &error)) {
