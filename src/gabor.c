@@ -10,8 +10,8 @@ static uint8_t *img_d;
 
 static void gabor(float r0, float theta0, float omega, float alpha, float beta, float rho, float phi, float *re, float *im)
 {
-    int x = (int)(phi * (float)img_w / (2.0 * PI));
-    int y = (int)(rho * (float)img_h);
+    int x = (int)(phi * (float)( (img_w - 1) / (2.0 * PI) ) );
+    int y = (int)(rho * (float)(img_h - 1));
 
     float rho_diff = r0 - rho;
     float phi_diff = theta0 - phi;
