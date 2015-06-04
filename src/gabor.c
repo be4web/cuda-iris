@@ -108,20 +108,20 @@ void generate_gabor_pattern(int iris_w, int iris_h, int iris_p, uint8_t *iris_d,
 
     memset(pattern, 0, 256);
 
-    float alpha = 0.2;
-    float beta = 0.2;
 
-    for (a = 0; a < 8; a++) {
-        float r0 = (float)a / 7.0;
+    for (a = 0; a < 4; a++) {
+        float r0 = (float)a / 3.0;
 
-        for (b = 0; b < 8; b++) {
-            float theta0 = (float)b * 2.0 * PI / 7.0;
+        for (b = 0; b < 4; b++) {
+            float theta0 = (float)b * 2.0 * PI / 3.0;
 
-            for (o = 0; o < 16; o++) {
-                float omega = PI / (float)(o + 1);
+			for (float alpha = 0.15; alpha < 1.2; alpha += (1.2 - 0.15) / 8)
+				for (float beta = 0.15; beta < 1.2; beta += (1.2 - 0.15) / 8)
+		            for (o = 10; o < 100; o += 90/8) {
+		                float omega = o;
 
-                pattern[32 * a + 4 * b + (o >> 2)] |= gabor_integrate(r0, theta0, omega, alpha, beta, 0.0, 1.0, 0.0, 2.0 * PI, iris_h, iris_w) << (2 * (o & 3));
-            }
+		                pattern[32 * a + 4 * b + (o >> 2)] |= gabor_integrate(r0, theta0, omega, alpha, beta, 0.0, 1.0, 0.0, 2.0 * PI, iris_h, iris_w) << (2 * (o & 3));
+		            }
         }
     }
 }
