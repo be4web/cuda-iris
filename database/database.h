@@ -28,3 +28,10 @@ void insert_data_database(mongoc_collection_t *collection, char *datastring, cha
  * 
  ***/
 char *search_substring_database(mongoc_collection_t *collection, char *search_string);
+
+/***
+ * Compare Hamming distances of 256Byte Arrays
+ * Arguments: Array1, Array2, Threshold
+ * Returns: True, False
+ ***/
+bool hamming_dist_match(char *array1, char *array2, int thres);

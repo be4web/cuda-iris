@@ -46,34 +46,12 @@ int main(int argc,char *argv[]) {
     mongoc_collection_destroy (collection);
     mongoc_client_destroy (client);
     
-    char *pos1 = argv[1], *pos2 = argv[2];
-    uint8_t pattern1[256], pattern2[256];
-    uint32_t *pat1 = (uint32_t *) pattern1, *pat2 = (uint32_t *) pattern2;
-                         
-    int hamming_dist = 0;
-       
-    while (*pos1)
-    {
-      sscanf(pos1, "%2hhx", &pattern1[(pos1-argv[1])>>1]);
-      sscanf(pos2, "%2hhx", &pattern2[(pos2-argv[2])>>1]);
-      pos1 += 2, pos2 += 2;
-    }
- 
-    int i;
-    for (i = 0; i < 256/sizeof(int); i++)  {
-        int sum = 0,
-        op = pat1[i] ^ pat2[i];
-               
-        __asm__ ("popcnt %1, %0"
-                         : "=r" (sum)
-                         : "r" (op)
-                );
- 
-        hamming_dist += sum;
-     }
-       
-     printf("Hamming distance: %d", hamming_dist);
-
+	bool comp = hamming_dist_match("4444hergjheghkearljfqöwkölskdmljvkldfhnbgk4444jbhewkjhfklajdshkjbfksjadbfhjbgdskajdfsanvkjbnnewjrnq3wbrhiefhioguhhdfsufsaeiu3984t59hrigjdfkgh4398ru32983z248975z39832059834957934734tz87erzhgihsdbhbjagshvchcv32432hvfjewv3243jdfsnkjbmkmbknndsjnskjsabckvnd", "fsdnvhergjheghkearljfqöwkölskdmljvkldfhnbgkjhkdfjbhewkjhfklajdshkjbfksjadbfhjbgdskajdfsanvkjbnnewjrnq3wbrhiefhioguhhdfsufsaeiu3984t59hrigjdfkgh4398ru32983z248975z39832059834957934734tz87erzhgihsdbhbjagshvchcv32432hvfjewv3243jdfsnkjbmkmbknndsjnskjsabckvnd", 800);
+	if(comp == true){
+		printf("match\n");
+	}else{
+		printf("no match\n");
+	}
   return 0;
 }
 

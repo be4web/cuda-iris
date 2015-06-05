@@ -110,9 +110,38 @@ char *search_substring_database(mongoc_collection_t *collection, char *search_st
  * Arguments: Array1, Array2, Threshold
  * Returns: True, False
  ***/
-bool hamming_dist_match(char *array1, char *array2, unsigned int thres)
+bool hamming_dist_match(char *array1, char *array2,int thres)
 {
-   
-   
-	return "No match!";
+    char *pos1 = array1, *pos2 = array2;
+    uint8_t pattern1[256], pattern2[256];
+    uint32_t *pat1 = (uint32_t *) pattern1, *pat2 = (uint32_t *) pattern2;
+                         
+    int hamming_dist = 0;
+       
+    while (*pos1)
+    {
+      sscanf(pos1, "%2hhx", &pattern1[(pos1-array1)>>1]);
+      sscanf(pos2, "%2hhx", &pattern2[(pos2-array2)>>1]);
+      pos1 += 2, pos2 += 2;
+    }
+ 
+    int i;
+    for (i = 0; i < 256/sizeof(int); i++)  {
+        int sum = 0,
+        op = pat1[i] ^ pat2[i];
+               
+        __asm__ ("popcnt %1, %0"
+                         : "=r" (sum)
+                         : "r" (op)
+                );
+ 
+        hamming_dist += sum;
+     }
+       
+     printf("Hamming distance: %d\n", hamming_dist);
+     if(thres > hamming_dist)
+     {
+		return true;
+	 }
+	return false;
 }
