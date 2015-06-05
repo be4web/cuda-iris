@@ -107,8 +107,8 @@ static int gabor_integrate(float r0, float theta0, float omega, float alpha, flo
         }
 
     //return ((sum_re < 0) ? 1 : 0) | ((sum_im < 0) ? 2 : 0);
-    *gabor_re = sum_re; // * step_rho * step_phi;
-    *gabor_im = sum_im; // * step_rho * step_phi;
+    *gabor_re = sum_re * step_rho * step_phi;
+    *gabor_im = sum_im * step_rho * step_phi;
 }
 
 #include <stdio.h>
@@ -125,11 +125,11 @@ void generate_gabor_pattern(int iris_w, int iris_h, int iris_p, uint8_t *iris_d,
 
     memset(pattern, 0, 256);
 
-    for (o = 0; o < 16; o++) {
-        float omega = 5.0 * (float)(o + 1) + 10.0;
+    for (o = 0; o <= 16; o++) {
+        float omega = 1.75 * (float)o + 4.0;
 
         float alpha = 0.025;
-        float beta = 0.4;
+        float beta = 4.0 * PI / omega;
 
         float *gabor_re, *gabor_im;
         gabor_re = malloc(iris_w * iris_h * sizeof(float));
@@ -140,7 +140,7 @@ void generate_gabor_pattern(int iris_w, int iris_h, int iris_p, uint8_t *iris_d,
                 float r0 = (float)r / (float)iris_h;
                 float theta0 = (float)t * 2.0 * PI / (float)iris_w;
 
-                gabor_integrate(r0, theta0, omega, alpha, beta, r0 - alpha * 2.0, r0 + alpha * 2.0, theta0 - beta * 2.0, theta0 - beta * 2.0, 20, 50,
+                gabor_integrate(r0, theta0, omega, alpha, beta, r0 - alpha * 2.0, r0 + alpha * 2.0, theta0 - beta * 2.0, theta0 + beta * 2.0, 20, 50,
                                 gabor_re + r * iris_w + t, gabor_im + r * iris_w + t);
             }
 
@@ -151,9 +151,9 @@ void generate_gabor_pattern(int iris_w, int iris_h, int iris_p, uint8_t *iris_d,
             fprintf(file, "P6\n%d %d\n255\n", iris_w, iris_h);
             int p;
             for (p = 0; p < iris_w * iris_h; p++) {
-                fputc((int)(gabor_re[p] / 16.0) + 128, file);
+                fputc((int)(gabor_re[p] * 6.0 * omega) + 128, file);
                 fputc(0, file);
-                fputc((int)(gabor_im[p] / 16.0) + 128, file);
+                fputc((int)(gabor_im[p] * 6.0 * omega) + 128, file);
             }
             fclose(file);
             printf("gabor wavelet for frequency %f written to `%s'\n", omega, path);
