@@ -21,3 +21,10 @@ void exec_client_command_database(mongoc_client_t *client,char *database_name, c
  * 
  ***/
 void insert_data_database(mongoc_collection_t *collection, char *datastring, char *subkey);
+
+/***
+ * Search for substrings in 256Byte Arrays
+ * Arguments: Collection, searchstring
+ * 
+ ***/
+char *search_substring_database(mongoc_collection_t *collection, char *search_string);

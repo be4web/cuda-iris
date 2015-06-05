@@ -70,3 +70,33 @@ void insert_data_database(mongoc_collection_t *collection, char *datastring, cha
 
     bson_destroy(doc);
 }
+
+/***
+ * Search for substrings in 256Byte Arrays
+ * Arguments: Collection, searchstring
+ * 
+ ***/
+char *search_substring_database(mongoc_collection_t *collection, char *search_string)
+{
+    const bson_t *fixdoc;
+    char iris_data[257];  
+    char *str;							/*actual string*/  
+    bson_t *query = bson_new();
+    mongoc_cursor_t *cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query,NULL,NULL);
+    
+    while(mongoc_cursor_next(cursor, &fixdoc)){
+		str = bson_as_json(fixdoc,NULL);
+		memcpy(iris_data,&str[61],256);
+		iris_data[256] = '\0';
+//		printf("%s\n",iris_data);
+		if(strstr(iris_data,search_string))
+		{
+			printf("%s\n",iris_data);
+			printf("Match found in object %s\n",str);
+			return &str[317];	
+		}
+		//printf("%s",str);
+		bson_free(str);
+	}
+	bson_destroy(query);
+}
