@@ -93,10 +93,26 @@ char *search_substring_database(mongoc_collection_t *collection, char *search_st
 		{
 			printf("%s\n",iris_data);
 			printf("Match found in object %s\n",str);
-			return &str[317];	
+			bson_destroy(query);
+			mongoc_cursor_destroy(cursor);
+			return "No match!";	
 		}
 		//printf("%s",str);
 		bson_free(str);
 	}
 	bson_destroy(query);
+	mongoc_cursor_destroy(cursor);
+	return "No match!";
+}
+
+/***
+ * Compare Hamming distances of 256Byte Arrays
+ * Arguments: Array1, Array2, Threshold
+ * Returns: True, False
+ ***/
+bool hamming_dist_match(char *array1, char *array2, unsigned int thres)
+{
+   
+   
+	return "No match!";
 }
