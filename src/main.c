@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
         img_c = gdk_pixbuf_get_n_channels(img),
         img_b = gdk_pixbuf_get_bits_per_sample(img);
 
-    printf("image prop: w: %d, h: %d, s: %d, c: %d, b %d\n", img_w, img_h, img_s, img_c, img_b);
+    fprintf(stderr, "image prop: w: %d, h: %d, s: %d, c: %d, b %d\n", img_w, img_h, img_s, img_c, img_b);
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
         tex_align = prop.textureAlignment - 1;
 
         pitch32 = ((img_w * 4 + tex_align) & ~tex_align) >> 2;
-        printf("texture alignment: %d, 32-bit width: %d => pitch: %d, per sample: %d\n", tex_align + 1, img_w * 4, pitch32 * 4, pitch32);
+        fprintf(stderr, "texture alignment: %d, 32-bit width: %d => pitch: %d, per sample: %d\n", tex_align + 1, img_w * 4, pitch32 * 4, pitch32);
 
         resized_p = ((resized_w * 4 + tex_align) & ~tex_align) >> 2;
     }
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
     //! Berechnung des Zentrums:
     cu_center_detection(resized_w, resized_h, gm_tmp, &center_x, &center_y);
 
-    printf("center: (%d, %d)\n", center_x, center_y);
+    fprintf(stderr, "center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
 
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
                 for (; x < CU_UNROLL_W; x++)
                     act_route[x] = act_y;
 
-                printf("trace at y=%d, cost: %d\n", y, cost);
+                fprintf(stderr, "trace at y=%d, cost: %d\n", y, cost);
 
                 if (route_1 == NULL) {
                     route_1 = act_route;
@@ -389,9 +389,9 @@ int main(int argc, char *argv[])
 
     //! Aufrollen der Iris:
     {
-        cudaMemset(gm_tmp, 0, img_w * img_h);
+        cudaMemset(gm_gray, 0, img_w * img_h);
 
-        cu_unroll(img_w, img_h, pitch32, gm_color, gm_iris, center_x, center_y, inner_rad, outer_rad, gm_tmp);
+        cu_unroll(img_w, img_h, pitch32, gm_color, gm_iris, center_x, center_y, inner_rad, outer_rad, gm_gray);
 
         {
             uint8_t *iris_d = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
 
         {
             uint8_t *gray_d = malloc(img_w * img_h);
-            cudaMemcpy(gray_d, gm_tmp, img_w * img_h, cudaMemcpyDeviceToHost);
+            cudaMemcpy(gray_d, gm_gray, img_w * img_h, cudaMemcpyDeviceToHost);
 
             int i;
             for (i = 0; i < 32; i++) {
@@ -494,7 +494,7 @@ int main(int argc, char *argv[])
         generate_gabor_pattern(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gray_d, gabor_pattern);
 
         {
-            printf("gabor pattern:\n");
+            //printf("gabor pattern:\n");
             int i;
             for (i = 0; i < 256; i++)
                 printf("%02x", gabor_pattern[i]);

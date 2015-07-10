@@ -117,7 +117,7 @@ extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_
 
     float elapsed_time = 0;
     cudaEventElapsedTime(&elapsed_time, start, stop);
-    printf("Took %f ms to compute Hough-Transform\n", elapsed_time);
+    fprintf(stderr, "Took %f ms to compute Hough-Transform\n", elapsed_time);
 }
 
 __global__ void center_detection(int img_w, int img_h, int *accumulator) {
