@@ -76,7 +76,7 @@ __global__ void convol_col_k_##USR##MTX_S(IN_T *in, OUT_T *out, MTX_T *mtx, MTX_
 {                                                                                                                      \
     __shared__ IN_T bl_d[(BLOCK_W)][((STEPS) + 2) * (BLOCK_H)]; /* +1 */                                               \
                                                                                                                        \
-    /* offset to left edge of apron */                                                                                 \
+    /* offset to upper edge of apron */                                                                                \
     const int off_x = blockIdx.x * (BLOCK_W) + threadIdx.x;                                                            \
     const int off_y = (blockIdx.y * (STEPS) - 1) * (BLOCK_H) + threadIdx.y;                                            \
                                                                                                                        \
@@ -217,3 +217,128 @@ extern "C" int cu_sobel_filter(int img_w, int img_h, void *gm_in, void *gm_hori,
 
     return 0;
 }
+
+/*!
+ * USR: user specified identifier for this convolution
+ * IN_T: input pixel type
+ * OUT_T: output pixel type
+ * MTX_T: matrix scalar type (this type is used for intermediate results!)
+ * MTX_S: matrix size
+ * BLOCK_W: block width (block x dimension); note: BLOCK_W must be >= (MTX_S / 2) to fill apron
+ * BLOCK_H: block height (block y dimension); note: BLOCK_H must be >= (MTX_S / 2) to fill apron
+ * STEPS_X: number of convolution steps performed (number of output pixels written) by each thread in x direction
+ * STEPS_Y: number of convolution steps performed (number of output pixels written) by each thread in y direction
+ */
+#define DECL_CU_CONVOLUTION(USR, IN_T, OUT_T, MTX_T, MTX_S, BLOCK_W, BLOCK_H, STEPS_X, STEPS_Y)                                                                \
+__global__ void convol_kernel_##USR(IN_T *in, OUT_T *out, MTX_T *mtx, MTX_T div, int img_w, int img_h)                                                         \
+{                                                                                                                                                              \
+    __shared__ IN_T bl_d[((STEPS_X) + 2) * (BLOCK_W)][((STEPS_Y) + 2) * (BLOCK_H)];                                                                            \
+                                                                                                                                                               \
+    /* offset to upper left corner of apron */                                                                                                                 \
+    const int off_x = (blockIdx.x * (STEPS_X) - 1) * (BLOCK_W) + threadIdx.x;                                                                                  \
+    const int off_y = (blockIdx.y * (STEPS_Y) - 1) * (BLOCK_H) + threadIdx.y;                                                                                  \
+                                                                                                                                                               \
+    in += off_y * img_w + off_x;                                                                                                                               \
+    out += off_y * img_w + off_x;                                                                                                                              \
+                                                                                                                                                               \
+    /* upper and lower apron */                                                                                                                                \
+    {                                                                                                                                                          \
+        IN_T *ua_in = in - img_w * ((off_y >= 0) ? 0 : off_y);                                                                                                 \
+        IN_T *la_in = in + img_w * ((img_h - off_y > ((STEPS_Y) + 1) * (BLOCK_H)) ? ((STEPS_Y) + 1) * (BLOCK_H) : (img_h - off_y - 1));                        \
+                                                                                                                                                               \
+        /* upper left and lower left apron */                                                                                                                  \
+        bl_d[threadIdx.x][threadIdx.y] = ua_in[(off_x >= 0) ? 0 : -off_x];                                                                                     \
+        bl_d[threadIdx.x][threadIdx.y + ((STEPS_Y) + 1) * (BLOCK_H)] = la_in[(off_x >= 0) ? 0 : -off_x];                                                       \
+                                                                                                                                                               \
+        /* upper mid and lower mid apron */                                                                                                                    \
+_Pragma("unroll")                                                                                                                                              \
+        for (int x = 1; x <= (STEPS_X); x++) {                                                                                                                 \
+            bl_d[threadIdx.x + x * (BLOCK_W)][threadIdx.y] = ua_in[x * (BLOCK_W)];                                                                             \
+            bl_d[threadIdx.x + x * (BLOCK_W)][threadIdx.y + ((STEPS_Y) + 1) * (BLOCK_H)] = la_in[x * (BLOCK_W)];                                               \
+        }                                                                                                                                                      \
+                                                                                                                                                               \
+        /* upper right and lower right apron */                                                                                                                \
+        bl_d[threadIdx.x + ((STEPS_X) + 1) * (BLOCK_W)][threadIdx.y] =                                                                                         \
+                                                       ua_in[(img_w - off_x > ((STEPS_X) + 1) * (BLOCK_W)) ? ((STEPS_X) + 1) * (BLOCK_W) : img_w - off_x - 1]; \
+        bl_d[threadIdx.x + ((STEPS_X) + 1) * (BLOCK_W)][threadIdx.y + ((STEPS_Y) + 1) * (BLOCK_H)] =                                                           \
+                                                       la_in[(img_w - off_x > ((STEPS_X) + 1) * (BLOCK_W)) ? ((STEPS_X) + 1) * (BLOCK_W) : img_w - off_x - 1]; \
+    }                                                                                                                                                          \
+                                                                                                                                                               \
+    /* left and right apron */                                                                                                                                 \
+    {                                                                                                                                                          \
+        IN_T *la_in = in - ((off_x >= 0) ? 0 : off_x);                                                                                                         \
+        IN_T *ra_in = in + ((img_w - off_x > ((STEPS_X) + 1) * (BLOCK_W)) ? ((STEPS_X) + 1) * (BLOCK_W) : img_w - off_x - 1);                                  \
+                                                                                                                                                               \
+_Pragma("unroll")                                                                                                                                              \
+        for (int y = 1; y <= (STEPS_Y); y++) {                                                                                                                 \
+            bl_d[threadIdx.x][threadIdx.y + y * (BLOCK_H)] = la_in[y * (BLOCK_H) * img_w];                                                                     \
+            bl_d[threadIdx.x + ((STEPS_X) + 1) * (BLOCK_W)][threadIdx.y + y * (BLOCK_H)] = ra_in[y * (BLOCK_H) * img_w];                                       \
+        }                                                                                                                                                      \
+    }                                                                                                                                                          \
+                                                                                                                                                               \
+    /* main data */                                                                                                                                            \
+_Pragma("unroll")                                                                                                                                              \
+    for (int x = 1; x <= (STEPS_X); x++) {                                                                                                                     \
+                                                                                                                                                               \
+_Pragma("unroll")                                                                                                                                              \
+        for (int y = 1; y <= (STEPS_Y); y++)                                                                                                                   \
+            bl_d[threadIdx.x + x * (BLOCK_W)][threadIdx.y + y * (BLOCK_H)] = in[x * (BLOCK_W) + y * (BLOCK_H) * img_w];                                        \
+    }                                                                                                                                                          \
+                                                                                                                                                               \
+    __syncthreads();                                                                                                                                           \
+                                                                                                                                                               \
+_Pragma("unroll")                                                                                                                                              \
+    for (int x = 1; x <= (STEPS_X); x++) {                                                                                                                     \
+                                                                                                                                                               \
+_Pragma("unroll")                                                                                                                                              \
+        for (int y = 1; y <= (STEPS_Y); y++) {                                                                                                                 \
+            MTX_T sum = 0;                                                                                                                                     \
+                                                                                                                                                               \
+_Pragma("unroll")                                                                                                                                              \
+            for (int i = -(MTX_S / 2); i <= ((MTX_S - 1) / 2); i++) {                                                                                          \
+                                                                                                                                                               \
+_Pragma("unroll")                                                                                                                                              \
+                for (int j = -(MTX_S / 2); j <= ((MTX_S - 1) / 2); j++)                                                                                        \
+                    sum += mtx[(MTX_S / 2) + i + MTX_S * ((MTX_S / 2) + j)] *  bl_d[threadIdx.x + x * (BLOCK_W) + i][threadIdx.y + y * (BLOCK_H) + j];         \
+            }                                                                                                                                                  \
+                                                                                                                                                               \
+            out[x * (BLOCK_W) + y * (BLOCK_H) * img_w] = sum / div;                                                                                            \
+        }                                                                                                                                                      \
+    }                                                                                                                                                          \
+}                                                                                                                                                              \
+                                                                                                                                                               \
+static void cu_convolve_##USR(void *gm_in, void *gm_out, void *gm_mtx, MTX_T div, int img_w, int img_h)                                                        \
+{                                                                                                                                                              \
+    dim3 blocks(img_w / ((BLOCK_W) * (STEPS_X)), img_h / ((BLOCK_H) * (STEPS_Y)));                                                                             \
+    dim3 threads((BLOCK_W), (BLOCK_H));                                                                                                                        \
+                                                                                                                                                               \
+    convol_kernel_##USR<<<blocks, threads>>>((IN_T *)gm_in, (OUT_T *)gm_out, (MTX_T *)gm_mtx, div, img_w, img_h);                                              \
+}
+
+DECL_CU_CONVOLUTION(wavelet_65, uint8_t, float, float, 65, 32, 32, 4, 4)
+
+__constant__ float wavelet_65[65][65];
+
+extern "C" void cu_wavelet_filter_65(int img_w, int img_h, void *gm_in, void *gm_out, const float *wave_mtx, float div)
+{
+    void *mtx;
+    cudaGetSymbolAddress(&mtx, wavelet_65);
+
+    cudaMemcpyToSymbol(wavelet_65, wave_mtx, 65 * 65 * sizeof(float));
+    cu_convolve_wavelet_65(gm_in, gm_out, mtx, div, img_w, img_h);
+}
+
+/*
+DECL_CU_CONVOLUTION(wavelet_97, uint8_t, float, float, 97, 48, 48, 2, 2)
+
+__constant__ float wavelet_97[97][97];
+
+extern "C" void cu_wavelet_filter_97(int img_w, int img_h, void *gm_in, void *gm_out, const float *wave_mtx)
+{
+    void *mtx;
+    cudaGetSymbolAddress(&mtx, wavelet_97);
+
+    cudaMemcpyToSymbol(wavelet_97, wave_mtx, 97 * 97 * sizeof(float));
+    cu_convolve_wavelet_97(gm_in, gm_out, mtx, 6000000.0, img_w, img_h);
+}
+*/

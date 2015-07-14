@@ -89,7 +89,7 @@ __global__ void hough_transform(int result_p, int *result, float min_rad, float 
 
 }
 
-#include <stdio.h>
+//#include <stdio.h>
 
 extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_p, void *gm_phi, int hough_p, void *gm_hough, float min_rad, float max_rad)
 {
@@ -117,7 +117,7 @@ extern "C" void cu_hough(int img_w, int img_h, int abs_p, void *gm_abs, int phi_
 
     float elapsed_time = 0;
     cudaEventElapsedTime(&elapsed_time, start, stop);
-    fprintf(stderr, "Took %f ms to compute Hough-Transform\n", elapsed_time);
+    //fprintf(stderr, "Took %f ms to compute Hough-Transform\n", elapsed_time);
 }
 
 __global__ void center_detection(int img_w, int img_h, int *accumulator) {

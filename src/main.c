@@ -13,7 +13,8 @@
 #include "histogram.h"
 #include "hough.h"
 #include "unroll.h"
-#include "gabor.h"
+//#include "gabor.h"
+#include "wavelet.h"
 
 #define PI 3.141592654
 #define RESIZED_IMAGE_WIDTH 256
@@ -39,7 +40,7 @@ int main(int argc, char *argv[])
         img_c = gdk_pixbuf_get_n_channels(img),
         img_b = gdk_pixbuf_get_bits_per_sample(img);
 
-    fprintf(stderr, "image prop: w: %d, h: %d, s: %d, c: %d, b %d\n", img_w, img_h, img_s, img_c, img_b);
+    //fprintf(stderr, "image prop: w: %d, h: %d, s: %d, c: %d, b %d\n", img_w, img_h, img_s, img_c, img_b);
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
         tex_align = prop.textureAlignment - 1;
 
         pitch32 = ((img_w * 4 + tex_align) & ~tex_align) >> 2;
-        fprintf(stderr, "texture alignment: %d, 32-bit width: %d => pitch: %d, per sample: %d\n", tex_align + 1, img_w * 4, pitch32 * 4, pitch32);
+        //fprintf(stderr, "texture alignment: %d, 32-bit width: %d => pitch: %d, per sample: %d\n", tex_align + 1, img_w * 4, pitch32 * 4, pitch32);
 
         resized_p = ((resized_w * 4 + tex_align) & ~tex_align) >> 2;
     }
@@ -162,7 +163,7 @@ int main(int argc, char *argv[])
     //! Berechnung des Zentrums:
     cu_center_detection(resized_w, resized_h, gm_tmp, &center_x, &center_y);
 
-    fprintf(stderr, "center: (%d, %d)\n", center_x, center_y);
+    //fprintf(stderr, "center: (%d, %d)\n", center_x, center_y);
 
     float inner_rad[32], outer_rad[32];
 
@@ -309,7 +310,7 @@ int main(int argc, char *argv[])
                 for (; x < CU_UNROLL_W; x++)
                     act_route[x] = act_y;
 
-                fprintf(stderr, "trace at y=%d, cost: %d\n", y, cost);
+                //fprintf(stderr, "trace at y=%d, cost: %d\n", y, cost);
 
                 if (route_1 == NULL) {
                     route_1 = act_route;
@@ -487,19 +488,76 @@ int main(int argc, char *argv[])
         }
     }
 
-    //! Gabor
+    //! Wavelet filter
     {
-        uint8_t gabor_pattern[256];
+        float mad[64]; // feature vector (mean absolute deviation)
+        float norm = 0.0;
 
-        generate_gabor_pattern(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gray_d, gabor_pattern);
+        void *gm_iris_wave;
+        cudaMalloc(&gm_iris_wave, CU_UNROLL_W * CU_UNROLL_H * sizeof(float));
 
-        {
-            //printf("gabor pattern:\n");
-            int i;
-            for (i = 0; i < 256; i++)
-                printf("%02x", gabor_pattern[i]);
-            printf("\n");
-        }
+        float *wave = malloc(CU_UNROLL_W * CU_UNROLL_H * sizeof(float));
+
+        int f, o;
+        for (f = 0; f < 16; f++)
+            for (o = 0; o < 4; o++) {
+                const float *wavelet = (const float *)log_gabor_bank[f][o];
+
+                {
+                    char path[256];
+                    snprintf(path, sizeof(path), "wavelet_%03d_%d.ppm", f, o);
+                    FILE *file = fopen(path, "w");
+                    fprintf(file, "P5\n%d %d\n255\n", 65, 65);
+                    int p;
+                    for (p = 0; p < 65 * 65; p++)
+                        fputc((int)(wavelet[p] * 127.0 + 128.0), file);
+                    fclose(file);
+                }
+
+                cu_wavelet_filter_65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_tmp, gm_iris_wave, wavelet, log_gabor_div[f]);
+                cudaMemcpy(wave, gm_iris_wave, CU_UNROLL_W * CU_UNROLL_H * sizeof(float), cudaMemcpyDeviceToHost);
+
+                {
+                    char path[256];
+                    snprintf(path, sizeof(path), "iris_wave_%03d_%d.ppm", f, o);
+                    FILE *file = fopen(path, "w");
+                    fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
+                    int p;
+                    for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++)
+                        fputc((int)(wave[p] * 0.5) + 128, file);
+                    fclose(file);
+                }
+
+                float mean = 0.0;
+
+                int r, t;
+                for (r = 0; r < CU_UNROLL_H; r++)
+                    for (t = 0; t < CU_UNROLL_W; t++)
+                        mean += wave[r * CU_UNROLL_W + t];
+
+                mean /= CU_UNROLL_W * CU_UNROLL_H;
+
+                float act_mad = 0.0;
+
+                for (r = 0; r < CU_UNROLL_H; r++)
+                    for (t = 0; t < CU_UNROLL_W; t++) {
+                        float diff = wave[r * CU_UNROLL_W + t] - mean;
+                        act_mad += (diff < 0) ? -diff : diff;
+                    }
+
+                mad[f * 4 + o] = act_mad /= CU_UNROLL_W * CU_UNROLL_H;
+                norm += act_mad * act_mad;
+            }
+
+        free(wave);
+
+        norm = sqrt(norm);
+
+        for (f = 0; f < 64; f++)
+            mad[f] /= norm;
+
+        for (f = 0; f < 16; f++)
+            printf("%f %f %f %f\n", f, mad[f * 4], mad[f * 4 + 1], mad[f * 4 + 2], mad[f * 4 + 3]);
     }
 
     cudaFree(gm_iris);
