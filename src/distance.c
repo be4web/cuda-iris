@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
         endp1 = buf1;
         endp2 = buf2;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < 2; i++) {
             v1 = strtof(endp1, &endp1);
             v2 = strtof(endp2, &endp2);
 

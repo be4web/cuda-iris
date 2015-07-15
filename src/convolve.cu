@@ -328,17 +328,25 @@ extern "C" void cu_wavelet_filter_65(int img_w, int img_h, void *gm_in, void *gm
     cu_convolve_wavelet_65(gm_in, gm_out, mtx, div, img_w, img_h);
 }
 
-/*
-DECL_CU_CONVOLUTION(wavelet_97, uint8_t, float, float, 97, 48, 48, 2, 2)
+DECL_CU_CONVOLUTION_ROW(sf, uint8_t, float, float, 65, 32, 4, 4)
+DECL_CU_CONVOLUTION_COL(sf, float, float, float, 65, 4, 32, 4)
 
-__constant__ float wavelet_97[97][97];
+__constant__ float mtx_f65[65];
 
-extern "C" void cu_wavelet_filter_97(int img_w, int img_h, void *gm_in, void *gm_out, const float *wave_mtx)
+extern "C" void cu_convolve_row_f65(int img_w, int img_h, void *gm_in, void *gm_out, const float *mtx, float div)
 {
-    void *mtx;
-    cudaGetSymbolAddress(&mtx, wavelet_97);
+    void *mtx_s;
+    cudaGetSymbolAddress(&mtx_s, mtx_f65);
 
-    cudaMemcpyToSymbol(wavelet_97, wave_mtx, 97 * 97 * sizeof(float));
-    cu_convolve_wavelet_97(gm_in, gm_out, mtx, 6000000.0, img_w, img_h);
+    cudaMemcpyToSymbol(mtx_f65, mtx, 65 * sizeof(float));
+    cu_convolve_row_sf65(gm_in, gm_out, mtx_s, div, img_w, img_h);
 }
-*/
+
+extern "C" void cu_convolve_col_f65(int img_w, int img_h, void *gm_in, void *gm_out, const float *mtx, float div)
+{
+    void *mtx_s;
+    cudaGetSymbolAddress(&mtx_s, mtx_f65);
+
+    cudaMemcpyToSymbol(mtx_f65, mtx, 65 * sizeof(float));
+    cu_convolve_col_sf65(gm_in, gm_out, mtx_s, div, img_w, img_h);
+}

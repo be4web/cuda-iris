@@ -433,9 +433,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    void *gm_iris_gray, *gm_iris_tmp;
+    void *gm_iris_gray, *gm_iris_equ, *gm_iris_tmp;
     cudaMalloc(&gm_iris_gray, CU_UNROLL_W * CU_UNROLL_H);
-    cudaMalloc(&gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H);
+    cudaMalloc(&gm_iris_equ, CU_UNROLL_W * CU_UNROLL_H);
+    cudaMalloc(&gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H * sizeof(float));
 
     cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris, CU_UNROLL_W, gm_iris_gray, 1, 4, 2);
 
@@ -469,13 +470,13 @@ int main(int argc, char *argv[])
             //printf("%d ", sub[i]);
         }
         //printf("\n\n");
-        cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, CU_UNROLL_W, gm_iris_tmp, sub);
+        cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, CU_UNROLL_W, gm_iris_equ, sub);
 
-        cudaMemcpy(gray_d, gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
+        cudaMemcpy(gray_d, gm_iris_equ, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
 
         {
             //uint8_t *gray_d = malloc(CU_UNROLL_W * CU_UNROLL_H);
-            //cudaMemcpy(gray_d, gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
+            //cudaMemcpy(gray_d, gm_iris_equ, CU_UNROLL_W * CU_UNROLL_H, cudaMemcpyDeviceToHost);
 
             FILE *file = fopen("iris_equal.pgm", "w");
             fprintf(file, "P5\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
@@ -500,7 +501,8 @@ int main(int argc, char *argv[])
 
         int f, o;
         for (f = 0; f < 16; f++)
-            for (o = 0; o < 4; o++) {
+            for (o = 0; o < 2; o++) {
+                /*
                 const float *wavelet = (const float *)log_gabor_bank[f][o];
 
                 {
@@ -514,7 +516,17 @@ int main(int argc, char *argv[])
                     fclose(file);
                 }
 
-                cu_wavelet_filter_65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_tmp, gm_iris_wave, wavelet, log_gabor_div[f]);
+                cu_wavelet_filter_65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_equ, gm_iris_wave, wavelet, log_gabor_div[f]);
+                */
+
+                if (o == 0) {
+                    cu_convolve_row_f65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_equ, gm_iris_tmp, (const float *)log_gabor_1d[f], log_gabor_div[f]);
+                    cu_convolve_col_f65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_tmp, gm_iris_wave, (const float *)gauss65, 1.0);
+                } else {
+                    cu_convolve_row_f65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_equ, gm_iris_tmp, (const float *)gauss65, 1.0);
+                    cu_convolve_col_f65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_tmp, gm_iris_wave, (const float *)log_gabor_1d[f], log_gabor_div[f]);
+                }
+
                 cudaMemcpy(wave, gm_iris_wave, CU_UNROLL_W * CU_UNROLL_H * sizeof(float), cudaMemcpyDeviceToHost);
 
                 {
@@ -548,6 +560,7 @@ int main(int argc, char *argv[])
                 mad[f * 4 + o] = act_mad /= CU_UNROLL_W * CU_UNROLL_H;
                 norm += act_mad * act_mad;
             }
+
 
         free(wave);
 

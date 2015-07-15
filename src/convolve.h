@@ -30,4 +30,7 @@ void cu_gauss_filter_f11(int img_w, int img_h, void *gm_in, void *gm_out, void *
 
 void cu_wavelet_filter_65(int img_w, int img_h, void *gm_in, void *gm_out, const float *wave_mtx, float div);
 
+void cu_convolve_row_f65(int img_w, int img_h, void *gm_in, void *gm_out, const float *mtx, float div);
+void cu_convolve_col_f65(int img_w, int img_h, void *gm_in, void *gm_out, const float *mtx, float div);
+
 #endif // CU_CONVOLVE_H
