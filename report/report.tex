@@ -229,21 +229,24 @@ The one dimensional Log Gabor function has the frequency response of:
 \[
 	G(f) = \exp\left( \frac{-(\log(f/f_0))^2}{2(\log(\sigma/f_0))^2}\right)
 \]
-where $f_0$ and $\sigma$ are the parameters of the filter, $f_0$ will determine the center frequency of the filter. Because of the zero at the DC value, it is not possible to derive a closed form expression in the time/space domain, therefore the filter is designed in the frequency domain and transformed to the time/space domain in a subsequent step.
-\par So far we only considered one dimensional Log Gabor filters. For the task of image processing it is useful to take a two dimensional version of the Log Gabor filter into consideration. For this purpose the transfer function is multiplied with a second Gaussian that additionally restricts the window in the second dimension and therefore imposing a direction on the filter. A representation of such a two dimensional filter in the time/space domain is depicted in figure~\ref{fig:2Dloggabor}. One can identify the Log Gabor function on the x-axis while in contrast on the y-axis a simple Gaussian function contributes to the plane. The z-axis shows the real part of the filter. 
+where $f_0$ and $\sigma$ are the parameters of the filter, $f_0$ will determine the center frequency of the filter. Because of the zero at the DC value, it is not possible to derive a closed form expression in the time/space domain, therefore the filter is designed in the frequency domain and transformed to the time/space domain in a subsequent step. 
+\par So far we only considered one dimensional Log Gabor filters. For the task of image processing it is useful to take a two dimensional version of the Log Gabor filter into consideration. For this purpose the transfer function is multiplied with a second Gaussian that additionally restricts the window in the second dimension and therefore imposing a direction on the filter. A representation of such a two dimensional filter in the time/space domain is depicted in figure~\ref{fig:2Dloggabor}. One can identify the Log Gabor function on the x-axis while in contrast on the y-axis a simple Gaussian function contributes to the plane. The z-axis shows the real part of the filter. A representation of a one dimensional Gabor and Log-Gabor filter in the time domain is portrayed in figure~\ref{fig:impulse_response}. The two filters share the same curve shape in the time representation. For the present implementation only the real part of the filter is used for filtering.
 
-%Wieso 45 grad??
-\par For this particular implementation we are only considering two directions for reasons explained further below. By varying frequency and orientation parameters it is possible to generate a filter bank that enhances different features of the iris. The creation of the filter bank and therefore the choices of the parameters is somehow unique to the application. No general approach is known for this task. 
+
 
 \begin{figure}[H]
 \centering
   \includegraphics[width=0.39\textwidth]{iris/log_gabor_2d.png}
-	\caption{3D representation of a Log Gabor filter's real part in the time domain}
+	\caption{3D representation of a Log Gabor filter's real part in the time domain.}
 	\label{fig:2Dloggabor}
 \end{figure}
-
-A small subset of the filter bank used in the implementation at hand is shown in figure~\ref{fig:filter_bank}. One can spot the different filter directions and frequencies in use. The bright parts of the filter correspond to large (amplifying) values while the dark part is essentially suppressing parts of the convolved image.
-
+%Wieso 45 grad??
+\begin{figure}[t]
+\centering
+  \includegraphics[width=0.49\textwidth]{iris/impulse_response}
+	\caption{a) impulse response of a Gabor filter b) impulse response of a Log Gabor filter (blue graph corresponds to the real part of the filter while the yellow curve depicts the imaginary part)}
+	\label{fig:impulse_response}
+\end{figure}
 
 \begin{figure}[t]
 	\centering
@@ -252,27 +255,32 @@ A small subset of the filter bank used in the implementation at hand is shown in
 	\label{fig:filter_bank}
 \end{figure}
 
+\par For this particular implementation we are only considering two directions for reasons explained further below. By varying frequency and orientation parameters it is possible to generate a filter bank that enhances different features of the iris. The creation of the filter bank and therefore the choices of the parameters is somehow unique to the application. No general approach is known for this task. 
+A small subset of the filter bank used in the implementation at hand is shown in figure~\ref{fig:filter_bank}. One can spot the different filter directions and frequencies in use. The bright parts of the filter correspond to large (amplifying) values while the dark part essentially conforms to suppressing parts of the filter. In particular the results of the convolution with two specific filters is shown in figure~\ref{fig:convolution_result}. One can clearly see that the filter enhances features that correspond to the parameters of the filter (e.g. frequency and direction).
+\par Only considering this two directions imposes the advantage that the Gabor filtering becomes a separable operations thus significantly increasing processing speed while the detection probability remains at about the same level. This characteristic is most likely based on the basic features of an iris that most pigments proceed perpendicular to the inner and outer radius.
+
 \begin{figure}[t]
 	\centering
   \includegraphics[width=0.49\textwidth]{iris/pattern_gen.png}
-	\caption{}
-	\label{}
+	\caption{Iris pattern after Log Gabor filtering with two filters of the same frequency but distinct directions.}
+	\label{fig:convolution_result}
 \end{figure}
 
 
 \subsubsection{Feature Vector Generation}
+The second action required for pattern generation is reducing the filtered iris to scalar values to make storage and retrieval of data from the database feasible. For this step various methods have been proposed. While some are based on the phase information of the filtered image (like Daugman's aproach  \cite{daugman2004iris}) we are considering the mean absolute deviation of gray values:
 \[
 D = \frac{1}{N\cdot M} \sum \limits_{x=0}^N \sum \limits_{y=0}^M |f(x,y) - \mu|
 \]
-
+For each filter such an scalar is calculated resulting in a total of 32 values in the current implementation (16 different frequencies at 2 different orientations).
 \subsection{Pattern Matching}
-After performing the Gabor transformation we aimed to take its output to do the pattern matching of two iris images. Thus each iris image is transformed into a 256 long character string (also called “iris matrix”) a humongous amount of data has to be stored and matched. This procedure cannot be done with common SQL database engines because they are not able to perform read/write commands to thousands of big sets of data within few  microseconds. As a consequence to the matter of this fact the conventional SQL approach has to be dropped and noSQL databases, which are explicitly designed for such purposes, were chosen. The disadvantage of such noSQL databases (e.g. mongoDB, OrientDB, CouchDB, Lotus Notes) is the weak data consistency which can be disregarded in the context of iris recognition concerning the relation of one or two bytes in relation to 256 bytes. The database “mongoDB” is used in this implementation.
+After performing the (Log-)Gabor transformation we aimed to take its output to do the pattern matching of two iris images. Thus each iris image is transformed into a 256 long character string (also called “iris matrix”) a humongous amount of data has to be stored and matched. This procedure cannot be done with common SQL database engines because they are not able to perform read/write commands to thousands of big sets of data within few  microseconds. As a consequence to the matter of this fact the conventional SQL approach has to be dropped and noSQL databases, which are explicitly designed for such purposes, were chosen. The disadvantage of such noSQL databases (e.g. mongoDB, OrientDB, CouchDB, Lotus Notes) is the weak data consistency which can be disregarded in the context of iris recognition concerning the relation of one or two bytes in relation to 256 bytes. The database “mongoDB” is used in this implementation.
 \par To search for an iris in the database it is essential to choose an remarkable and unique vector out of the searched iris matrix. This vector, that we also call “feature vector”, contains the most significant samples out of a iris matrix. The feature vector can be gained by selecting a window of samples out of the matrix (see Figure~\ref{pic:picture1}) which leaves enough space between the outer circle of the iris to avoid image errors caused by eyelashes and eyelids, especially in case of small eyes and eyes with the epicanthic fold. Thus the unrolling generates multiple redundant vector data of the inner iris image, the possibility for a match with the same generated pattern in a iris matrix from a different eye is higher. Therefore, a feature vector should not contain much data of the inner part from the iris.
 \par With the generated feature vector it is now possible to search for matching iris matrices in the database. This is done by substring comparison. All found candidates are full bit wise compared to calculate the hamming distance between the sample matrix and the matrix from the database. To avoid false positives a threshold value for the hamming distance is used. In case of multiple matches, the iris with the smallest hamming distance is chosen.
 
 \section{Implementation}
 
-\lipsum[3]
+The above mentioned algorithm was implemented in NVIDIA's CUDA language. The CUDA language provides some very efficient intrinsics that give an enormous speed up. Most of them were already discussed at the point where that particular part of the algorithm was discussed. As discussed previously iris recognition mostly deals with images (at least the steps involvinf fea)
 
 \section{Results}
 \lipsum[3]
