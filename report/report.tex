@@ -299,7 +299,7 @@ The above mentioned algorithm was implemented in NVIDIA's CUDA runtime. The CUDA
 \par The implementation can be accessed directly from GitHub\footnote{\url{https://github.com/be4web/cuda-iris/}}. The program is split into parts that are executed on host system (*.c files) and device files (*.cu files). The Makefile includes a test run (\verb+make test+) that compiles and compares various images from the CASIA Iris Image Database. The following listing gives an overview of the most important algorithm implementations (approximately ordered by calling sequence):
 \begin{itemize}
 	\item \verb+pixel.cu+: Contains diverse helper image manipulation functions, e.g. color to grey conversion, palette substitution for histogram equalization, gradient normalization, image resize and coordinate transformation.
-	\item \verb+convolve.cu+: Accommodates seperable convolution code used for Sobel, Gabor and Gauss filtering.
+	\item \verb+convolve.cu+: Accommodates separable convolution code used for Sobel, Gabor and Gauss filtering.
 	\item \verb+hough.cu+: Performs the Hough transform.
 	\item \verb+histogram.cu+: Parallel histogram generation. 
 	\item \verb+unroll.cu+: Image unrolling based on a given center and outline trace.
