@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <bson.h>
 #include <mongoc.h>
+#include <math.h>
 /***
  * Execute a arbitary database command
  * Arguments: Client, Collection, Command String and Argument for the Command
@@ -20,18 +21,18 @@ void exec_client_command_database(mongoc_client_t *client,char *database_name, c
  * Arguments: Client, Collection, Command String and Argument for the Command
  * 
  ***/
-void insert_data_database(mongoc_collection_t *collection, char *datastring, char *subkey);
+void insert_data_database(mongoc_collection_t *collection, float *data_vector, char *subkey);
 
 /***
- * Search for substrings in 256Byte Arrays
+ * Search for feature vector in the whole database
  * Arguments: Collection, searchstring
  * 
  ***/
-char *search_substring_database(mongoc_collection_t *collection, char *search_string);
+char *search_vector_database(mongoc_collection_t *collection, float *data_vector);
 
 /***
- * Compare Hamming distances of 256Byte Arrays
- * Arguments: Array1, Array2, Threshold
- * Returns: True, False
+ * calculates the distances between the source and destination iris feature vector
+ * Arguments: float array1, float array2
+ * 
  ***/
-bool hamming_dist_match(char *array1, char *array2, int thres);
+float distance_calculation(float *array1,float *array2);

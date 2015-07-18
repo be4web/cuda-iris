@@ -31,7 +31,7 @@ void exec_client_command_database(mongoc_client_t *client,char *database_name, c
     bson_error_t error;
     bson_t *command;
     bson_t reply;
-    char *str;                /* reply string */
+    char *str;                                     /* reply string */
     
     command = BCON_NEW (command_string, BCON_UTF8 (argument));
     if (mongoc_client_command_simple(client, database_name, command, NULL, &reply, &error)) {
@@ -48,15 +48,24 @@ void exec_client_command_database(mongoc_client_t *client,char *database_name, c
  * Arguments: Collection, Datastring and subkey
  * 
  ***/
-void insert_data_database(mongoc_collection_t *collection, char *datastring, char *subkey)
+void insert_data_database(mongoc_collection_t *collection, float *data_vector, char *subkey)
 {
     bson_oid_t oid;
 	bson_t *doc;
     bson_error_t error;
     bson_t *command;
     bson_t reply;
-    char *str;                /* reply string */
-    
+    char *str;                                      /* reply string */
+    char *datastring = malloc(256);
+    memset(datastring,'\0',256);
+	
+    for(int k=0;k<32;k++)                                     /* process all 32 floating point variables */
+    {
+		char *number=malloc(8);                     /* allocate memory */
+		sprintf(number,"%-.6f",data_vector[k]);     /* print the float as string */
+		(void)strncat(datastring,number,8);         /* concatenate to one big datastring */
+	}
+	
     doc = bson_new();
     bson_oid_init (&oid, NULL);
     BSON_APPEND_OID (doc, "_id", &oid);    
@@ -67,19 +76,18 @@ void insert_data_database(mongoc_collection_t *collection, char *datastring, cha
     }else{
 		printf("Insert success\n");
 	}
-
     bson_destroy(doc);
 }
 
 /***
- * Search for substrings in 256Byte Arrays
+ * Search for feature vector in the whole database
  * Arguments: Collection, searchstring
  * 
  ***/
-char *search_substring_database(mongoc_collection_t *collection, char *search_string)
+char *search_vector_database(mongoc_collection_t *collection, float *data_vector)
 {
-    const bson_t *fixdoc;
-    char iris_data[257];  
+	const bson_t *fixdoc;
+    char *iris_data = malloc(257);  
     char *str;							/*actual string*/  
     bson_t *query = bson_new();
     mongoc_cursor_t *cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query,NULL,NULL);
@@ -88,17 +96,24 @@ char *search_substring_database(mongoc_collection_t *collection, char *search_st
 		str = bson_as_json(fixdoc,NULL);
 		memcpy(iris_data,&str[61],256);
 		iris_data[256] = '\0';
-//		printf("%s\n",iris_data);
-		if(strstr(iris_data,search_string))
+		printf("%s\n",iris_data);
+
+		float feature_vector[32];
+		for(int n=0;n<32;n++)
 		{
-			printf("%s\n",iris_data);
-			printf("Match found in object %s\n",str);
-			bson_destroy(query);
-			mongoc_cursor_destroy(cursor);
-			return "No match!";	
+			char *offset = iris_data+8;
+			feature_vector[n] = strtof(iris_data,&(offset));
+			iris_data+=8;
 		}
-		//printf("%s",str);
+		/*comparison, 0.07 is the threshold value*/	
+		if(distance_calculation(data_vector,feature_vector) < 0.07)
+		{
+			printf("Hurra scheissgeil\n");
+			return "match";
+		}
+		
 		bson_free(str);
+		/************/
 	}
 	bson_destroy(query);
 	mongoc_cursor_destroy(cursor);
@@ -106,42 +121,18 @@ char *search_substring_database(mongoc_collection_t *collection, char *search_st
 }
 
 /***
- * Compare Hamming distances of 256Byte Arrays
- * Arguments: Array1, Array2, Threshold
- * Returns: True, False
+ * calculates the distances between the source and destination iris feature vector
+ * Arguments: float array1, float array2, threshold
+ * 
  ***/
-bool hamming_dist_match(char *array1, char *array2,int thres)
+float distance_calculation(float *array1,float *array2)
 {
-    char *pos1 = array1, *pos2 = array2;
-    uint8_t pattern1[256], pattern2[256];
-    uint32_t *pat1 = (uint32_t *) pattern1, *pat2 = (uint32_t *) pattern2;
-                         
-    int hamming_dist = 0;
-       
-    while (*pos1)
-    {
-      sscanf(pos1, "%2hhx", &pattern1[(pos1-array1)>>1]);
-      sscanf(pos2, "%2hhx", &pattern2[(pos2-array2)>>1]);
-      pos1 += 2, pos2 += 2;
+    float dist, diff;
+    
+	for (int i = 0; i < 32; i++) 
+	{
+        diff = array1[i] - array2[i];
+        dist += diff * diff;
     }
- 
-    int i;
-    for (i = 0; i < 256/sizeof(int); i++)  {
-        int sum = 0,
-        op = pat1[i] ^ pat2[i];
-               
-        __asm__ ("popcnt %1, %0"
-                         : "=r" (sum)
-                         : "r" (op)
-                );
- 
-        hamming_dist += sum;
-     }
-       
-     printf("Hamming distance: %d\n", hamming_dist);
-     if(thres > hamming_dist)
-     {
-		return true;
-	 }
-	return false;
+	return sqrt(dist);
 }
