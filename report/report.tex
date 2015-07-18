@@ -151,7 +151,7 @@ The internals of radii detection and unwrapping are closely related. In a first 
 \end{align*}
 The angle difference is then fed to a standard Gaussian distribution which favors values close to zero.
 \begin{align*}
-	f = \exp\left(-\frac{(\Delta \varphi)^2}{\sigma^2}\right)
+	f(\varphi_{(x,y)}) = \exp\left(-\frac{(\Delta \varphi)^2}{\sigma^2}\right)
 \end{align*}
 Subsequently this factor is multiplied with the Euclidean norm of the gradient map at position $(x,y)$. An example of such an enhancement is displayed in figure~\ref{fig:sobel_norm}.
 \begin{figure}[ht]
@@ -274,24 +274,38 @@ D = \frac{1}{N\cdot M} \sum \limits_{x=0}^N \sum \limits_{y=0}^M |f(x,y) - \mu|
 \]
 For each filter such an scalar is calculated resulting in a total of 32 values in the current implementation (16 different frequencies at 2 different orientations).
 \subsection{Pattern Matching}
-After performing the (Log-)Gabor transformation we aimed to take its output to do the pattern matching of two iris images. Thus each iris image is transformed into a 256 long character string (also called “iris matrix”) a humongous amount of data has to be stored and matched. This procedure cannot be done with common SQL database engines because they are not able to perform read/write commands to thousands of big sets of data within few  microseconds. As a consequence to the matter of this fact the conventional SQL approach has to be dropped and noSQL databases, which are explicitly designed for such purposes, were chosen. The disadvantage of such noSQL databases (e.g. mongoDB, OrientDB, CouchDB, Lotus Notes) is the weak data consistency which can be disregarded in the context of iris recognition concerning the relation of one or two bytes in relation to 256 bytes. The database “mongoDB” is used in this implementation.
-\par To search for an iris in the database it is essential to choose an remarkable and unique vector out of the searched iris matrix. This vector, that we also call “feature vector”, contains the most significant samples out of a iris matrix. The feature vector can be gained by selecting a window of samples out of the matrix (see Figure~\ref{pic:picture1}) which leaves enough space between the outer circle of the iris to avoid image errors caused by eyelashes and eyelids, especially in case of small eyes and eyes with the epicanthic fold. Thus the unrolling generates multiple redundant vector data of the inner iris image, the possibility for a match with the same generated pattern in a iris matrix from a different eye is higher. Therefore, a feature vector should not contain much data of the inner part from the iris.
-\par With the generated feature vector it is now possible to search for matching iris matrices in the database. This is done by substring comparison. All found candidates are full bit wise compared to calculate the hamming distance between the sample matrix and the matrix from the database. To avoid false positives a threshold value for the hamming distance is used. In case of multiple matches, the iris with the smallest hamming distance is chosen.
+
+After performing the Gabor Wavelet transformation we aimed to take its output to do the pattern matching of two iris images. Thus each iris image is transformed into a floating point vector of 32 variables (also called “feature vector”) a humongous amount of data has to be stored and matched. This procedure cannot be done with common SQL database engines because they are not able to perform read/write commands to thousands of big sets of data within few  microseconds. As a consequence to the matter of this fact the conventional SQL approach has to be dropped and noSQL databases, which are explicitly designed for such purposes, were chosen. The disadvantage of such noSQL databases (e.g. mongoDB, OrientDB, CouchDB, Lotus Notes) is the weak data consistency which can be disregarded in the context of iris recognition concerning the relation of one or two bytes in relation to 32 floating point variables. Since the database mongoDB, which is used in this implementation, is completely written in C, there would be the option to implement parts of this database in CUDA to accelerate the processing speed. This kind of custom modification requires deeper knowledge of the database and were already done for specific purposes \footnote{\url{https://github.com/harishd10/mongodb}}. NoSQL is not very wide-spread, therefore there are not many projects which deals with CUDA implementations of such databases.
+\par With the generated feature vector it is now possible to search for matching iris vectors in the database. This is done by distance calculation. The distance of two feature vectors is calculated with the following formula:
+\[
+dist = \sqrt{\sum_{n=0}^{32}{[vector1[n]-vector2[n]]}^2}
+\]
+To distinct between a miss and a hit, it turned out that a threshold of 7\% performs sufficiently well, which means that a distance value greater than 0.07 marks a miss and vice versa.
 
 \section{Implementation}
 
-The above mentioned algorithm was implemented in NVIDIA's CUDA language. The CUDA language provides some very efficient intrinsics that give an enormous speed up. Most of them were already discussed at the point where that particular part of the algorithm was discussed. As discussed previously iris recognition mostly deals with images (at least the steps involvinf fea)
+The above mentioned algorithm was implemented in NVIDIA's CUDA runtime. The CUDA runtime provides some very efficient intrinsics that give an enormous speed up. Most of them were already discussed at the point where that particular part of the algorithm was discussed. As discussed previously iris recognition mostly deals with images (at least the steps involving feature detection and pattern generation) which gives the GPU a tremendous dominance over the CPU. Costly operations like transferring data from the host system to the device are reduced. In essence the image is copied only once to the device and kept there until the small feature vector is retrieved from the device.
+\par In our implementation we take additional advantage of CUDA specific technology like the texture and constant memory and advanced features like warp functions therefore significantly speeding up the overall procedure. Currently the only thing that is still implemented sequentially on the CPU is the part of pattern matching including the database access. Although there are some (unsupported) CUDA extensions to MongoDB it only makes sense to parallelize some part of the database access.
+\par The implementation can be accessed directly from GitHub\footnote{\url{https://github.com/be4web/cuda-iris/}}. The program is split into parts that are executed on host system (*.c files) and device files (*.cu files). The Makefile includes a test run (\verb+make test+) that compiles and compares various images from the CASIA Iris Image Database. The following listing gives an overview of the most important algorithm implementations (approximately ordered by calling sequence):
+\begin{itemize}
+	\item \verb+pixel.cu+: Contains diverse helper image manipulation functions, e.g. color to grey conversion, palette substitution for histogram equalization, gradient normalization, image resize and coordinate transformation.
+	\item \verb+convolve.cu+: Accommodates seperable convolution code used for Sobel, Gabor and Gauss filtering.
+	\item \verb+hough.cu+: Performs the Hough transform.
+	\item \verb+histogram.cu+: Parallel histogram generation. 
+	\item \verb+unroll.cu+: Image unrolling based on a given center and outline trace.
+\end{itemize}
 
 \section{Results}
-\lipsum[3]
-
+As at the beginning of the porting process to a parallelized version we had most of the feature extraction part implemented in a sequential reference algorithm. While the sequential algorithm operates poorly in terms of computation time, the CUDA version significantly outperformed the CPU version of a factor of 20 only on the part of feature extraction. The implementation of separable convolution on the GPU imposes additional computational advantages on (Log-)Gabor filtering therefore exceeding the running time of a sequential implementation.
 \section{Conclusion}
-\lipsum[3]
-
- 
+Summarized it was shown by the present implementation that iris recognition is another field that can largely benefit from the parallel architecture of general purpose graphics computing. In addition evolving system on a chip technology (like NVIDIA's Tegra architecture) make an iris recognition that performs most of its costly operations on the GPU particularly interesting. Because it frees the central processing unit from the rather cumbersome task of image processing, embedded systems (e.g. wearables) can gain advantages in terms of computational power and energy usage.
+\par Furthermore the parallelized version makes it possible to generate large biometric datasets in relatively short time by using GPUs in high performance computing (HPC).
+\par In addition the CUDA implementation provide a low-cost alternative to systems based on FPGA's or ASICS.
+\newpage
 \bibliographystyle{plain}
 \bibliography{references} 
 
+\newpage
 \begin{appendix}
 	\begin{proof}
 		By definition of the 2D discrete convolution:
