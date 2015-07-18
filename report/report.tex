@@ -216,7 +216,14 @@ The corresponding generated histogram and image are depicted in figure~\ref{fig:
 \subsection{Pattern Generation}
 The next part deals with the generation of a pattern (or feature vector) that uniquely determines the iris. The feature vector should have the properties to be as small as possible (in terms of byte size) in order to be stored, retrieved and matched as fast as possible from a potentially large dataset. In addition the feature vector should be largely invariant to rotations, dilatations and images properties like brightness, hue and contrast. Various approaches to this problem are persecuted in the literature. We decided our implementation in favor of a Log Gabor filter and subsequent calculation of an average absolute deviation of gray values (our implementation is mostly based on the ideas of Seif et al.\cite{seif2003iris}). 
 \subsubsection{Log Gabor filtering}
-The Gabor filter is able to simultaneously analyze the space and frequency characteristics of a given signal. There exist numerous transformations (variations of the short-time Fourier transform) that share that same characteristic however, the Gabor filter achieves optimal in terms of the space-frequency tradeoff \cite{gabor1946theory}. The Log Gabor filter in particular is one improvement of the Gabor filter in the way that fits the statistics of natural images. In fact there is some evidence that Log Gabor filtering performs similar to how the human visual system processes information \cite{daugman1985uncertainty}. In addition the Log Gabor filter has a zero DC component, hence the response does not depend on the mean value of the signal. The difference in the frequency responses can be seen in figure~\ref{fig:frequency_response}. As shown by the plot the Gabor filter over-represents low frequencies. The third frequency response is the same as the second but instead of a linear frequency axis a logarithmic axis is used. When represented in this manner the response becomes a Gaussian bell formed curve.   
+The Gabor filter is able to simultaneously analyze the space and frequency characteristics of a given signal. There exist numerous transformations (variations of the short-time Fourier transform) that share that same characteristic however, the Gabor filter achieves optimal in terms of the space-frequency tradeoff \cite{gabor1946theory}.
+
+\[
+	G(f) = \exp\left( \frac{-(f-f_0)^2}{2(\sigma-f_0)^2}\right)
+\]
+
+The Log Gabor filter in particular is one improvement of the Gabor filter in the way that fits the statistics of natural images. In fact there is some evidence that Log Gabor filtering performs similar to how the human visual system processes information \cite{daugman1985uncertainty}. In addition the Log Gabor filter has a zero DC component, hence the response does not depend on the mean value of the signal.
+
 \begin{figure}[t]
 	\centering
   \includegraphics[width=0.49\textwidth]{iris/freq_response_gabor.png}
@@ -224,15 +231,24 @@ The Gabor filter is able to simultaneously analyze the space and frequency chara
 	\label{fig:frequency_response}
 \end{figure}
 
-
 The one dimensional Log Gabor function has the frequency response of:
 \[
 	G(f) = \exp\left( \frac{-(\log(f/f_0))^2}{2(\log(\sigma/f_0))^2}\right)
 \]
-where $f_0$ and $\sigma$ are the parameters of the filter, $f_0$ will determine the center frequency of the filter. Because of the zero at the DC value, it is not possible to derive a closed form expression in the time/space domain, therefore the filter is designed in the frequency domain and transformed to the time/space domain in a subsequent step. 
-\par So far we only considered one dimensional Log Gabor filters. For the task of image processing it is useful to take a two dimensional version of the Log Gabor filter into consideration. For this purpose the transfer function is multiplied with a second Gaussian that additionally restricts the window in the second dimension and therefore imposing a direction on the filter. A representation of such a two dimensional filter in the time/space domain is depicted in figure~\ref{fig:2Dloggabor}. One can identify the Log Gabor function on the x-axis while in contrast on the y-axis a simple Gaussian function contributes to the plane. The z-axis shows the real part of the filter. A representation of a one dimensional Gabor and Log-Gabor filter in the time domain is portrayed in figure~\ref{fig:impulse_response}. The two filters share the same curve shape in the time representation. For the present implementation only the real part of the filter is used for filtering.
+where $f_0$ and $\sigma$ are the parameters of the filter, $f_0$ will determine the center frequency of the filter.
 
+Figure~\ref{fig:frequency_response} shows the difference between the frequency responses of a Gabor and a Log Gabor filter. The Gabor filter over-represents low frequencies and under-represents high frequencies. Additionally, there is a non-zero DC component. The Log Gabor filter equally represents low and high frequencies. In fact, when the frequency response of a Log Gabor filter is shown with a logarithmic frequency scale, one can see that the response is symmetric with respect to the center frequency.
 
+There is no analytical equation for the Log Gabor filter in the time domain. In order to generate a time-domain representation of this filter, which can then be applied to the image, the frequency response must be sampled and the discrete values must be transformed into the time domain using the inverse discrete Fourier transform. Figure~\ref{fig:impulse_response} shows the time domain representation of Gabor and a Log Gabor filter. The curve shape of these two filters is similar in the time domain. Although the real and imaginary parts of the filters are shown, we will only use the real part of the Log Gabor filter for further filtering.
+
+\begin{figure}[t]
+\centering
+  \includegraphics[width=0.49\textwidth]{iris/impulse_response}
+	\caption{Time domain representation of a) a Gabor filter and b) a Log Gabor filter (blue graph corresponds to the real part of the filter while the yellow curve depicts the imaginary part)}
+	\label{fig:impulse_response}
+\end{figure}
+
+\par So far we only considered one dimensional Log Gabor filters. For the task of image processing it is useful to take a two dimensional version of the Log Gabor filter into consideration. For this purpose the transfer function is multiplied with a second Gaussian that additionally restricts the window in the second dimension and therefore imposing a direction on the filter. A representation of such a two dimensional filter in the time/space domain is depicted in figure~\ref{fig:2Dloggabor}. One can identify the Log Gabor function on the x-axis while in contrast on the y-axis a simple Gaussian function contributes to the plane. The z-axis shows the real part of the filter.
 
 \begin{figure}[H]
 \centering
@@ -240,14 +256,8 @@ where $f_0$ and $\sigma$ are the parameters of the filter, $f_0$ will determine 
 	\caption{3D representation of a Log Gabor filter's real part in the time domain.}
 	\label{fig:2Dloggabor}
 \end{figure}
-%Wieso 45 grad??
-\begin{figure}[t]
-\centering
-  \includegraphics[width=0.49\textwidth]{iris/impulse_response}
-	\caption{a) impulse response of a Gabor filter b) impulse response of a Log Gabor filter (blue graph corresponds to the real part of the filter while the yellow curve depicts the imaginary part)}
-	\label{fig:impulse_response}
-\end{figure}
 
+%Nix 45 grad!
 \begin{figure}[t]
 	\centering
   \includegraphics[width=0.49\textwidth]{iris/2d_log_gabor_filter.png}
