@@ -1,0 +1,166 @@
+\documentclass{beamer}
+
+\usepackage{siunitx} 
+\usepackage{multicol}
+\usepackage{listings}
+
+\usetheme{Rochester}
+\usecolortheme{material}
+
+\setbeamertemplate{footline}[text line]{%
+  \parbox{0.5\linewidth}{
+    \vspace*{-12pt} %\insertshorttitle~(\insertshortauthor)
+  }
+  \hfill%
+  \parbox{0.5\linewidth}{
+    \vspace*{-12pt}\raggedleft\insertpagenumber
+  }
+}
+\lstset{
+breaklines=true, 
+basicstyle=\scriptsize, 
+keywordstyle=\color{blue700},
+basewidth=0.55em
+}
+\setbeamertemplate{navigation symbols}{}
+\begin{document}
+\title[Massively Parallelized Iris Recognition with CUDA]{Massively Parallelized Iris Recognition with CUDA}
+\author[Platzer M., Weber T., Zaruba F.]{Platzer Michael, Weber Thomas, Zaruba Florian}
+\date{\today}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+% \begin{frame}\frametitle{Table of Contents}
+% \begin{multicols}{2}
+%   \tableofcontents
+% \end{multicols}
+% \end{frame}
+
+\section{Introduction} 
+\subsection{Iris Recognition}
+\begin{frame}
+\frametitle{} 
+
+\end{frame}
+
+\subsection{Related Work}
+\begin{frame}
+\frametitle{} 
+
+  \begin{itemize}
+    \item bullet
+  \end{itemize} 
+%  \begin{figure}[hp]
+%       \includegraphics[width=0.65\textwidth]{pictures/Protocols.pdf}
+%       \caption{Protocol overview.}
+%     \label{fig:flow}
+%   \end{figure} 
+\end{frame}
+
+\section{} 
+\subsection{Problem Description}
+\begin{frame}
+
+\end{frame}
+  
+\subsection{System Overview}
+\begin{frame}
+
+\end{frame}
+
+\begin{frame}
+
+\end{frame}
+
+\section{Approach} 
+\subsection{Preprocessing}
+\begin{frame}
+\frametitle{} 
+
+\begin{itemize}
+    \item 
+  \end{itemize} 
+\end{frame}
+
+\begin{frame} [fragile] \frametitle{ } 
+
+\end{frame}
+
+\begin{frame} [fragile] \frametitle{ } 
+
+\end{frame}
+
+\begin{frame} [fragile] \frametitle{ } 
+
+\end{frame}
+
+\subsection{Feature Extraction}
+\begin{frame} [fragile] \frametitle{} 
+
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=C++]
+CODE
+\end{lstlisting}
+\end{frame}
+
+\begin{frame} [fragile] 
+\frametitle{} 
+
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=C++]
+CODE
+\end{lstlisting}
+\end{frame}
+
+\begin{frame} [fragile]
+\frametitle{} 
+
+\end{frame}
+
+\subsection{Unrolling}
+\begin{frame}
+\frametitle{} 
+
+\end{frame}
+
+\begin{frame} [fragile] 
+\frametitle{} 
+
+\begin{itemize}
+    \item 
+    \item 
+    \item 
+    \item 
+  \end{itemize}
+  
+\end{frame}
+
+\subsection{Pattern Generation}
+\begin{frame} [fragile] 
+\frametitle{} 
+
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=C]
+CODE
+\end{lstlisting}
+\end{frame}
+
+\subsection{Pattern Matching}
+\begin{frame} [fragile] 
+\frametitle{} 
+
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=C]
+CODE
+\end{lstlisting}
+\end{frame}
+
+\section{Implementation}
+\subsection{Program} 
+\begin{frame} [fragile] 
+\frametitle{} 
+
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=C]
+CODE
+\end{lstlisting}
+\end{frame}
+
+\end{document}
