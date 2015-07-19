@@ -55,7 +55,7 @@ int main(int argc,char *argv[])
 	/* mongodb insert */	
 //	insert_data_database(collection, hector_vector, "Iris");
   /*mongodb search like*/
-    printf("Result: %s\n",search_vector_database(collection, hector_vector));
+    printf("Result: %s\n",search_vector_database(collection, hector_vector, 0.07));
     
 
 	printf("******END SEARCH********");    

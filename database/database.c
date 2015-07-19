@@ -84,7 +84,7 @@ void insert_data_database(mongoc_collection_t *collection, float *data_vector, c
  * Arguments: Collection, searchstring
  * 
  ***/
-char *search_vector_database(mongoc_collection_t *collection, float *data_vector)
+char *search_vector_database(mongoc_collection_t *collection, float *data_vector, float threshold)
 {
 	const bson_t *fixdoc;
     char *iris_data = malloc(257);  
@@ -110,7 +110,7 @@ char *search_vector_database(mongoc_collection_t *collection, float *data_vector
 		}
 		
 		/*comparison, 0.07 is the threshold value*/	
-		if(distance_calculation(data_vector,feature_vector) < 0.07)
+		if(distance_calculation(data_vector,feature_vector) < threshold)
 		{
 			printf("Hurra scheissgeil\n");
 			found = true;

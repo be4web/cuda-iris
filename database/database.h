@@ -28,7 +28,7 @@ void insert_data_database(mongoc_collection_t *collection, float *data_vector, c
  * Arguments: Collection, searchstring
  * 
  ***/
-char *search_vector_database(mongoc_collection_t *collection, float *data_vector);
+char *search_vector_database(mongoc_collection_t *collection, float *data_vector, float threshold);
 
 /***
  * calculates the distances between the source and destination iris feature vector
