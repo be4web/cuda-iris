@@ -110,6 +110,9 @@ char *search_vector_database(mongoc_collection_t *collection, float *data_vector
 		{
 			printf("Hurra scheissgeil\n");
 			return "match";
+		}else{
+			printf("Ned so geil...\n");
+			return("no match");
 		}
 		
 		bson_free(str);
@@ -117,6 +120,7 @@ char *search_vector_database(mongoc_collection_t *collection, float *data_vector
 	}
 	bson_destroy(query);
 	mongoc_cursor_destroy(cursor);
+	printf("ned geil\n");
 	return "No match!";
 }
 
