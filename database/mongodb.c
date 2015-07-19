@@ -12,7 +12,7 @@ int main(int argc,char *argv[])
 	short i=0;
 	while(i<32)	/* hector vector fill */
 	{	
-		hector_vector[i]=0.123456;
+		hector_vector[i]=0.223456;
 		i++;
 	}
 	char *datastring;

@@ -91,6 +91,7 @@ char *search_vector_database(mongoc_collection_t *collection, float *data_vector
     char *str;							/*actual string*/  
     bson_t *query = bson_new();
     mongoc_cursor_t *cursor = mongoc_collection_find(collection, MONGOC_QUERY_NONE,0,0,0,query,NULL,NULL);
+    bool found=false;
     
     while(mongoc_cursor_next(cursor, &fixdoc)){
 		str = bson_as_json(fixdoc,NULL);
@@ -98,29 +99,35 @@ char *search_vector_database(mongoc_collection_t *collection, float *data_vector
 		iris_data[256] = '\0';
 		printf("%s\n",iris_data);
 
+		char *iris_pointer = iris_data;
+
 		float feature_vector[32];
 		for(int n=0;n<32;n++)
 		{
-			char *offset = iris_data+8;
-			feature_vector[n] = strtof(iris_data,&(offset));
-			iris_data+=8;
+			char *offset = iris_pointer+8;
+			feature_vector[n] = strtof(iris_pointer,&(offset));
+			iris_pointer+=8;
 		}
+		
 		/*comparison, 0.07 is the threshold value*/	
 		if(distance_calculation(data_vector,feature_vector) < 0.07)
 		{
 			printf("Hurra scheissgeil\n");
-			return "match";
+			found = true;
 		}else{
 			printf("Ned so geil...\n");
-			return("no match");
 		}
 		
 		bson_free(str);
-		/************/
 	}
 	bson_destroy(query);
 	mongoc_cursor_destroy(cursor);
-	printf("ned geil\n");
+	if(found){
+		return("match");
+	}else{
+		return("no match");
+	}
+	/* should not be reached */
 	return "No match!";
 }
 
