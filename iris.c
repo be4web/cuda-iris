@@ -1,3 +1,8 @@
+/*!
+ * \file iris.c
+ * Reference implementation for hough transform in C
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
