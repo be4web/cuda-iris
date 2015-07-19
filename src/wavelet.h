@@ -1,6 +1,11 @@
 #ifndef WAVELET_H
 #define WAVELET_H
 
+/*!
+ * \file wavelet.h
+ * Log Gabor filter bank
+ */
+
 static const float log_gabor_bank[][4][65][65] =
 #include "log_gabor_bank.txt"
 ;
