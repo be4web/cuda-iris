@@ -7,6 +7,7 @@ To see current status:
 `$ cd src/ && make test`
 
 Dependencies:
-CUDA
-gdk-pixbuf-2.0
-libmongoc-1.0 (optional)
+
+* CUDA
+* gdk-pixbuf-2.0
+* libmongoc-1.0 (optional)
