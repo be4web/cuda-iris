@@ -28,8 +28,6 @@ int cu_sobel_filter(int img_w, int img_h, void *gm_in, void *gm_hori, void *gm_v
 
 void cu_gauss_filter_f11(int img_w, int img_h, void *gm_in, void *gm_out, void *gm_tmp);
 
-void cu_wavelet_filter_65(int img_w, int img_h, void *gm_in, void *gm_out, const float *wave_mtx, float div);
-
 void cu_convolve_row_f65(int img_w, int img_h, void *gm_in, void *gm_out, const float *mtx, float div);
 void cu_convolve_col_f65(int img_w, int img_h, void *gm_in, void *gm_out, const float *mtx, float div);
 

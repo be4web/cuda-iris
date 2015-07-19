@@ -315,6 +315,7 @@ static void cu_convolve_##USR(void *gm_in, void *gm_out, void *gm_mtx, MTX_T div
     convol_kernel_##USR<<<blocks, threads>>>((IN_T *)gm_in, (OUT_T *)gm_out, (MTX_T *)gm_mtx, div, img_w, img_h);                                              \
 }
 
+/*
 DECL_CU_CONVOLUTION(wavelet_65, uint8_t, float, float, 65, 32, 32, 4, 4)
 
 __constant__ float wavelet_65[65][65];
@@ -327,6 +328,7 @@ extern "C" void cu_wavelet_filter_65(int img_w, int img_h, void *gm_in, void *gm
     cudaMemcpyToSymbol(wavelet_65, wave_mtx, 65 * 65 * sizeof(float));
     cu_convolve_wavelet_65(gm_in, gm_out, mtx, div, img_w, img_h);
 }
+*/
 
 DECL_CU_CONVOLUTION_ROW(sf, uint8_t, float, float, 65, 32, 4, 4)
 DECL_CU_CONVOLUTION_COL(sf, float, float, float, 65, 4, 32, 4)
