@@ -22,9 +22,9 @@
 
 //#define DEBUG
 
-int get_iris_features(const char *path, float *mad)
+int get_iris_features(const char *path, float *feature_vect)
 {
-    //! Reading image file:
+    //! Read image file:
     GdkPixbuf *img;
     GError *err = NULL;
 
@@ -45,7 +45,7 @@ int get_iris_features(const char *path, float *mad)
 
     uint8_t *img_d = gdk_pixbuf_get_pixels(img);
 
-    void *gm_color, *gm_gray, *gm_resized, *gm_sobel_h, *gm_sobel_v, *gm_sobel_abs, *gm_sobel_phi, *gm_tmp;
+    //! Calculate required pitch for correct texture alignment of resized image
     int pitch32;
 
     int resized_w = RESIZED_IMAGE_WIDTH,
@@ -66,6 +66,8 @@ int get_iris_features(const char *path, float *mad)
         resized_p = ((resized_w * 4 + tex_align) & ~tex_align) >> 2;
     }
 
+    //! Initialize graphic memories
+    void *gm_color, *gm_gray, *gm_resized, *gm_sobel_h, *gm_sobel_v, *gm_sobel_abs, *gm_sobel_phi, *gm_tmp;
     cudaMalloc(&gm_color, pitch32 * img_h * 4);
     cudaMalloc(&gm_gray, img_w * img_h);
     cudaMalloc(&gm_resized, resized_w * resized_h);
@@ -169,9 +171,8 @@ int get_iris_features(const char *path, float *mad)
     }
 #endif
 
+    //! Detection of center of iris:
     int center_x, center_y;
-
-    //! Calculation of center of iris:
     cu_center_detection(resized_w, resized_h, gm_tmp, &center_x, &center_y);
 
 #ifdef DEBUG
@@ -191,6 +192,7 @@ int get_iris_features(const char *path, float *mad)
         cudaMalloc(&gm_norm_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
         cudaMalloc(&gm_tmp_unr, CU_UNROLL_W * CU_UNROLL_H * 4);
 
+        // normalize gradient data (emphasizes gradients which are aligned witht the center):
         cu_centered_gradient_normalization(resized_w, resized_h, resized_p, gm_sobel_abs, resized_p, gm_sobel_phi, resized_p, gm_norm, center_x, center_y);
 
 #ifdef DEBUG
@@ -216,8 +218,10 @@ int get_iris_features(const char *path, float *mad)
             outer_rad[i] = max_rad;
         }
 
+        // unroll the normalized gradient data, using the minimum and maximum radius as inner and outer boundaries respectively:
         cu_unroll(resized_w, resized_h, resized_p, gm_norm, gm_norm_unr, center_x, center_y, inner_rad, outer_rad, gm_tmp);
 
+        // apply a gaussian blur to the unrolled gradient data to remove possible noise:
         cu_gauss_filter_f11(CU_UNROLL_W, CU_UNROLL_H, gm_norm_unr, gm_norm_unr, gm_tmp_unr);
 
         float *norm_unr;
@@ -236,6 +240,7 @@ int get_iris_features(const char *path, float *mad)
         }
 #endif
 
+        // trace the local maxima in the normalized gradient data
         uint8_t *norm_unr_maxima;
         norm_unr_maxima = malloc(CU_UNROLL_W * CU_UNROLL_H);
 
@@ -268,6 +273,8 @@ int get_iris_features(const char *path, float *mad)
         }
 #endif
 
+        // find the two routes along the local maxima which have minimal cost:
+        // (see report for a visualization of what is going on here)
         int *route_1, *route_2, *act_route;
         int cost_1, cost_2;
 
@@ -383,6 +390,7 @@ int get_iris_features(const char *path, float *mad)
         }
 #endif
 
+        // consider these two traces to be the inner and outer boundaries of the iris and set them accordingly for the unroll operation
         for (i = 0; i < 32; i++) {
             inner_rad[i] = route_1[i * CU_UNROLL_W / 32] * (max_rad - min_rad) / CU_UNROLL_H + 6;
             outer_rad[i] = route_2[i * CU_UNROLL_W / 32] * (max_rad - min_rad) / CU_UNROLL_H + 6;
@@ -399,6 +407,7 @@ int get_iris_features(const char *path, float *mad)
         cudaFree(gm_tmp_unr);
     }
 
+    // rescale the center coordinates and inner and outer boundaries to the original iris image:
     center_x = ((float)img_w / resized_w) * center_x;
     center_y = ((float)img_h / resized_h) * center_y;
 
@@ -415,61 +424,59 @@ int get_iris_features(const char *path, float *mad)
     cudaMalloc(&gm_iris_wave, CU_UNROLL_W * CU_UNROLL_H * sizeof(float));
     cudaMalloc(&gm_iris_tmp, CU_UNROLL_W * CU_UNROLL_H * sizeof(float));
 
+#ifdef DEBUG
+    cudaMemset(gm_gray, 0, img_w * img_h);
+#endif
+
     //! Iris unrolling:
+    cu_unroll(img_w, img_h, pitch32, gm_color, gm_iris, center_x, center_y, inner_rad, outer_rad, gm_gray);
+
+#ifdef DEBUG
     {
-        cudaMemset(gm_gray, 0, img_w * img_h);
+        uint8_t *iris_d = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
+        cudaMemcpy(iris_d, gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4, cudaMemcpyDeviceToHost);
 
-        cu_unroll(img_w, img_h, pitch32, gm_color, gm_iris, center_x, center_y, inner_rad, outer_rad, gm_gray);
-
-#ifdef DEBUG
-        {
-            uint8_t *iris_d = malloc(CU_UNROLL_W * CU_UNROLL_H * 4);
-            cudaMemcpy(iris_d, gm_iris, CU_UNROLL_W * CU_UNROLL_H * 4, cudaMemcpyDeviceToHost);
-
-            FILE *file = fopen("iris.ppm", "w");
-            fprintf(file, "P6\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
-            int p;
-            for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++) {
-                fputc(iris_d[p * 4], file);
-                fputc(iris_d[p * 4 + 1], file);
-                fputc(iris_d[p * 4 + 2], file);
-            }
-            fclose(file);
-
-            free(iris_d);
+        FILE *file = fopen("iris.ppm", "w");
+        fprintf(file, "P6\n%d %d\n255\n", CU_UNROLL_W, CU_UNROLL_H);
+        int p;
+        for (p = 0; p < CU_UNROLL_W * CU_UNROLL_H; p++) {
+            fputc(iris_d[p * 4], file);
+            fputc(iris_d[p * 4 + 1], file);
+            fputc(iris_d[p * 4 + 2], file);
         }
-#endif
+        fclose(file);
 
-#ifdef DEBUG
-        {
-            uint8_t *gray_d = malloc(img_w * img_h);
-            cudaMemcpy(gray_d, gm_gray, img_w * img_h, cudaMemcpyDeviceToHost);
+        free(iris_d);
 
-            int i;
-            for (i = 0; i < 32; i++) {
-                float phi = (float)i * 2.0 * PI / 32.0;
-                gray_d[(center_y + (int)(inner_rad[i] * sin(phi))) * img_w + center_x + (int)(inner_rad[i] * cos(phi))] = 255;
-                gray_d[(center_y + (int)(outer_rad[i] * sin(phi))) * img_w + center_x + (int)(outer_rad[i] * cos(phi))] = 255;
-            }
+        uint8_t *gray_d = malloc(img_w * img_h);
+        cudaMemcpy(gray_d, gm_gray, img_w * img_h, cudaMemcpyDeviceToHost);
 
-            FILE *file = fopen("unroll_cut.pgm", "w");
-            fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
-            int p;
-            for (p = 0; p < img_w * img_h; p++)
-                fputc(gray_d[p], file);
-            fclose(file);
-
-            free(gray_d);
+        int i;
+        for (i = 0; i < 32; i++) {
+            float phi = (float)i * 2.0 * PI / 32.0;
+            gray_d[(center_y + (int)(inner_rad[i] * sin(phi))) * img_w + center_x + (int)(inner_rad[i] * cos(phi))] = 255;
+            gray_d[(center_y + (int)(outer_rad[i] * sin(phi))) * img_w + center_x + (int)(outer_rad[i] * cos(phi))] = 255;
         }
-#endif
+
+        FILE *file = fopen("unroll_cut.pgm", "w");
+        fprintf(file, "P5\n%d %d\n255\n", img_w, img_h);
+        int p;
+        for (p = 0; p < img_w * img_h; p++)
+            fputc(gray_d[p], file);
+        fclose(file);
+
+        free(gray_d);
     }
+#endif
 
+    //! Convert unrolled iris image to gray-scale:
     cu_color_to_gray(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris, CU_UNROLL_W, gm_iris_gray, 1, 4, 2);
 
-    //! Histogram equalization
+    //! Histogram equalization:
     {
         int *histo = malloc(sizeof(int) * 256);
 
+        // Calculate image histogram:
         cu_histogram(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, gm_iris_tmp, histo);
 
 #ifdef DEBUG
@@ -484,18 +491,17 @@ int get_iris_features(const char *path, float *mad)
         }
 #endif
 
+        // Redistribute the gray values equally over the histogram spectrum:
         int tmp[256];
         uint8_t sub[256];
         int cdf, i;
         cdf = 0;
         for (i = 0; i < 256; i++)
             tmp[i] = cdf += histo[i];
-        //printf("sub:\n");
-        for (i = 0; i < 256; i++) {
+        for (i = 0; i < 256; i++)
             sub[i] = tmp[i] * 255 / cdf;
-            //printf("%d ", sub[i]);
-        }
-        //printf("\n\n");
+
+        // Substitute the gray values according to the new distribution:
         cu_pixel_substitute(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_gray, CU_UNROLL_W, gm_iris_equ, sub);
 
 #ifdef DEBUG
@@ -517,12 +523,12 @@ int get_iris_features(const char *path, float *mad)
 
     //! Log Gabor filter
     {
-        //float mad[32]; // feature vector (mean absolute deviation)
         float norm = 0.0;
 
         int f, o;
         for (f = 0; f < 16; f++)
             for (o = 0; o < 2; o++) {
+                // Convolve image with Log Gabor filter:
                 if (o == 0) {
                     cu_convolve_row_f65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_equ, gm_iris_tmp, (const float *)log_gabor_1d[f], log_gabor_div[f]);
                     cu_convolve_col_f65(CU_UNROLL_W, CU_UNROLL_H, gm_iris_tmp, gm_iris_wave, (const float *)gauss65, 1.0);
@@ -547,15 +553,17 @@ int get_iris_features(const char *path, float *mad)
                 }
 #endif
 
-                float act_mad;
-                mad[f * 2 + o] = act_mad = cu_mad(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_wave, gm_iris_tmp);
-                norm += act_mad * act_mad;
+                // Calculate mean absolute deviation:
+                float mad;
+                feature_vect[f * 2 + o] = mad = cu_mad(CU_UNROLL_W, CU_UNROLL_H, CU_UNROLL_W, gm_iris_wave, gm_iris_tmp);
+                norm += mad * mad;
             }
 
         norm = sqrt(norm);
 
+        // Normalize feature vector to compensate for
         for (f = 0; f < 32; f++)
-            mad[f] /= norm;
+            feature_vect[f] /= norm;
     }
 
     cudaFree(gm_iris);

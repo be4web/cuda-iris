@@ -1,3 +1,10 @@
+/*!
+ * \file test.c
+ * Test application
+ *
+ * Extracts the feature vector of an iris image and prints it to stdout.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

@@ -1,3 +1,10 @@
+/*!
+ * \file main.c
+ * Main application
+ *
+ * Extracts the feature vector of an iris image and performs the desired database operation (insert or search).
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -9,6 +16,8 @@
 
 #define MONGO_CLIENT "mongodb://localhost:27017/"
 #define MONGO_COLLECTION "Iris"
+
+#define MATCH_THRESHOLD 0.07
 
 int main(int argc, char *argv[])
 {
@@ -54,7 +63,7 @@ int main(int argc, char *argv[])
         insert_data_database(collection, feature_vect, MONGO_COLLECTION);
 
     else if (op == 2)
-        printf("Result: %s\n", search_vector_database(collection, feature_vect));
+        printf("Result: %s\n", search_vector_database(collection, feature_vect, MATCH_THRESHOLD));
 
     mongoc_collection_destroy (collection);
     mongoc_client_destroy (client);
