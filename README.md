@@ -9,7 +9,7 @@ To see current status:
 To get into the code:
 take a look at [src/iris.c](https://github.com/be4web/cuda-iris/blob/master/src/iris.c),
 uncomment the definition of `DEBUG` on [line 23](https://github.com/be4web/cuda-iris/blob/master/src/iris.c#L23)
-to get debug output and a ton of pictures which visualize the process
+to get debug output and a ton of pictures which visualize the process.
 
 Dependencies:
 * CUDA
