@@ -1,0 +1,176 @@
+\begin{thebibliography}{10}
+
+\bibitem{4483498}
+T.~Akenine-Moller and J.~Strom.
+\newblock Graphics processing units for handhelds.
+\newblock {\em Proceedings of the IEEE}, 96(5):779--789, May 2008.
+
+\bibitem{boles1998human}
+Wageeh~W Boles and Boualem Boashash.
+\newblock A human identification technique using images of the iris and wavelet
+  transform.
+\newblock {\em IEEE transactions on signal processing}, 46(4):1185--1188, 1998.
+
+\bibitem{borovicka2003circle}
+Jaroslav Borovicka.
+\newblock Circle detection using hough transforms documentation.
+\newblock {\em Image Processing and Computer Vision}, 2003.
+
+\bibitem{cui2004fast}
+Jiali Cui, Yunhong Wang, Tieniu Tan, Li~Ma, and Zhenan Sun.
+\newblock A fast and robust iris localization method based on texture
+  segmentation.
+\newblock In {\em Defense and Security}, pages 401--408. International Society
+  for Optics and Photonics, 2004.
+
+\bibitem{4305270}
+J.~Daugman.
+\newblock New methods in iris recognition.
+\newblock {\em Systems, Man, and Cybernetics, Part B: Cybernetics, IEEE
+  Transactions on}, 37(5):1167--1175, Oct 2007.
+
+\bibitem{daugman2004iris}
+John Daugman.
+\newblock How iris recognition works.
+\newblock {\em Circuits and Systems for Video Technology, IEEE Transactions
+  on}, 14(1):21--30, 2004.
+
+\bibitem{daugman1985uncertainty}
+John~G Daugman.
+\newblock Uncertainty relation for resolution in space, spatial frequency, and
+  orientation optimized by two-dimensional visual cortical filters.
+\newblock {\em JOSA A}, 2(7):1160--1169, 1985.
+
+\bibitem{daugman1993high}
+John~G Daugman.
+\newblock High confidence visual recognition of persons by a test of
+  statistical independence.
+\newblock {\em Pattern Analysis and Machine Intelligence, IEEE Transactions
+  on}, 15(11):1148--1161, 1993.
+
+\bibitem{daugmanspie}
+John~G Daugman.
+\newblock http://spie.org/x108321.xml, July 2015.
+
+\bibitem{2dloggabor}
+Fischer et~al.
+\newblock Self-invertible 2d log-gabor wavelets.
+\newblock {\em International Journal of Computer Vision}, 75(2):231--246, 2007.
+
+\bibitem{loggabores}
+Fischer et~al.
+\newblock How to construct log-gabor filters?
+\newblock 2009.
+
+\bibitem{field1987}
+David~J. Field.
+\newblock Relations between the statistics of natural images and the response
+  properties of cortical cells.
+\newblock {\em JOSA A}, 4(12):2379--2394, 1987.
+
+\bibitem{flom1987iris}
+L.~Flom and A.~Safir.
+\newblock Iris recognition system, February~3 1987.
+\newblock US Patent 4,641,349.
+
+\bibitem{gabor1946theory}
+Dennis Gabor.
+\newblock Theory of communication. part 1: The analysis of information.
+\newblock {\em Journal of the Institution of Electrical Engineers-Part III:
+  Radio and Communication Engineering}, 93(26):429--441, 1946.
+
+\bibitem{6417657}
+A.~Hematian, A.A. Manaf, S.~Chuprat, R.~Khaleghparast, and S.~Yazdani.
+\newblock Field programmable gate array system for real-time iris recognition.
+\newblock In {\em Open Systems (ICOS), 2012 IEEE Conference on}, pages 1--6,
+  Oct 2012.
+
+\bibitem{5487592}
+R.~Hentati, M.~Bousselmi, and M.~Abid.
+\newblock An embedded system for iris recognition.
+\newblock In {\em Design and Technology of Integrated Systems in Nanoscale Era
+  (DTIS), 2010 5th International Conference on}, pages 1--5, March 2010.
+
+\bibitem{hu2010iris}
+Zhou Hu-lin and Xie Mei.
+\newblock Iris biometic processor enhanced module fpga-based design.
+\newblock In {\em Computer Modeling and Simulation, 2010. ICCMS'10. Second
+  International Conference on}, volume~2, pages 259--262. IEEE, 2010.
+
+\bibitem{huang2004new}
+Junzhou Huang, Yunhong Wang, Tieniu Tan, and Jiali Cui.
+\newblock A new iris segmentation method for recognition.
+\newblock In {\em Pattern Recognition, 2004. ICPR 2004. Proceedings of the 17th
+  International Conference on}, volume~3, pages 554--557. IEEE, 2004.
+
+\bibitem{jimenez2006fpga}
+Judith~Liu Jimenez, Raul~Sanchez Reillo, Almudena Lindoso, and Oscar~Miguel
+  Hurtado.
+\newblock Fpga implementation for an iris biometric processor.
+\newblock In {\em Field Programmable Technology, 2006. FPT 2006. IEEE
+  International Conference on}, pages 265--268. IEEE, 2006.
+
+\bibitem{kong2001accurate}
+W-K Kong and D~Zhang.
+\newblock Accurate iris segmentation based on novel reflection and eyelash
+  detection model.
+\newblock In {\em Intelligent Multimedia, Video and Speech Processing, 2001.
+  Proceedings of 2001 International Symposium on}, pages 263--266. IEEE, 2001.
+
+\bibitem{nvidiaparallel}
+Justin Luitjens.
+\newblock
+  http://devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/,
+  July 2015.
+
+\bibitem{mohd2004fpga}
+F~Mohd-Yasin, AL~Tan, and MI~Reaz.
+\newblock The fpga prototyping of iris recognition for biometric identification
+  employing neural network.
+\newblock In {\em Microelectronics, 2004. ICM 2004 Proceedings. The 16th
+  International Conference on}, pages 458--461. IEEE, 2004.
+
+\bibitem{podlozhnyuk2007image}
+Victor Podlozhnyuk.
+\newblock Image convolution with cuda.
+\newblock {\em NVIDIA Corporation white paper, June}, 2097(3), 2007.
+
+\bibitem{proencca2006iris}
+Hugo Proen{\c{c}}a and Lu{\i}s~A Alexandre.
+\newblock Iris segmentation methodology for non-cooperative recognition.
+\newblock In {\em Vision, Image and Signal Processing, IEE Proceedings-},
+  volume 153, pages 199--205. IET, 2006.
+
+\bibitem{rakvic2009parallelizing}
+Ryan~N Rakvic, Bradley~J Ulis, Randy~P Broussard, Robert~W Ives, and Neil
+  Steiner.
+\newblock Parallelizing iris recognition.
+\newblock {\em Information Forensics and Security, IEEE Transactions on},
+  4(4):812--823, 2009.
+
+\bibitem{seif2003iris}
+A~Seif, R~Zewail, M~Saeb, and N~Amdy.
+\newblock Iris identification based on log gabor filtering.
+\newblock In {\em Circuits and Systems, 2003 IEEE 46th Midwest Symposium on},
+  volume~1, pages 333--336. IEEE, 2003.
+
+\bibitem{shapiro2001computer}
+Linda Shapiro and George~C Stockman.
+\newblock Computer vision. 2001.
+\newblock {\em ed: Prentice Hall}, 2001.
+
+\bibitem{sobel3x3}
+I~Sobel and G~Feldman.
+\newblock A 3x3 isotropic gradient operator for image processing (1968).
+\newblock {\em a talk at the Stanford Artificial Intelligence Project}.
+
+\bibitem{ir-testv1}
+Biometrics~Ideal Test.
+\newblock Casia iris image database for testing version 1.0, July 2015.
+
+\bibitem{zhu2000biometric}
+Yong Zhu, Tieniu Tan, and Yunhong Wang.
+\newblock Biometric personal identification based on iris patterns.
+\newblock In {\em icpr}, page 2801. IEEE, 2000.
+
+\end{thebibliography}

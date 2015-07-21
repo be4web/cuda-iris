@@ -1,0 +1,16 @@
+\newlabel{fig:2Dloggabor}
+\newlabel{fig:convolution_result}
+\newlabel{fig:filter_bank}
+\newlabel{fig:flow}
+\newlabel{fig:frequency_response}
+\newlabel{fig:histogram}
+\newlabel{fig:hough_impl}
+\newlabel{fig:impulse_response}
+\newlabel{fig:input}
+\newlabel{fig:iris_cut_mask}
+\newlabel{fig:sobel_hough}
+\newlabel{fig:sobel_norm}
+\newlabel{fig:sobel}
+\newlabel{fig:trace}
+\newlabel{fig:unrolled_iris}
+\newlabel{fig:unrolled}

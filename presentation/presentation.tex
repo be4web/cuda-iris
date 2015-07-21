@@ -194,10 +194,10 @@
 				\item Unrolling with regard to the trace determined in the previous step. 
 				\item In order to enhance the performance in the later step of pattern matching we are equalizing the image over the whole grey space of 256 bit. 
 				\item 
-				\begin{aligned}
-					& cdf_x(i) = \sum \limits_{j=0}^{i} p_x(j) \\
-					& pal(i) = cdf_x(i)\cdot 255 
-				\end{aligned}
+%				\begin{aligned}
+%					& cdf_x(i) = \sum \limits_{j=0}^{i} p_x(j) \\
+%					& pal(i) = cdf_x(i)\cdot 255 
+%				\end{aligned}
 			\end{itemize}
 		\end{column}
 		\begin{column}
@@ -265,7 +265,59 @@
 \end{frame}
 
 \subsection{Pattern Matching} 
+\section{Iris} 
+\subsection{Iris Database}
+\begin{frame}
+\frametitle{Iris Database} 
+We need a Database to store our iris vectors.\\
+What are the requirements for such database?\\
+  \begin{itemize}
+    \item Fast read cycles
+    \item Ability to handle big amounts of data
+    \item Efficient API
+    \item $[$Optional$]$ CUDA support
+  \end{itemize}
+%    \begin{figure}[hp]
+%       \includegraphics[width=0.40\textwidth]{../figures/ev_network.JPG}
+%       \caption{Handle a complex system by using an EOS.}
+%     \label{fig:flow}
+%   \end{figure} 
+\end{frame}
 
+\begin{frame}
+\frametitle{Iris Database} 
+We use mongoDB(NoSQL) to store our iris vectors.\\
+The main reasons for this step were:\\
+  \begin{itemize}
+    \item NoSQL approach
+    \item C/C++/.. API
+    \item Master-Slave-Replication
+    \item Homebrew CUDA support \footnote{https://github.com/harishd10/mongodb}
+  \end{itemize}
+  Iris Vector Format: $[$ ID, SUBKEY, IRIS-DATA $]$
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Iris Database} 
+Main program contains the basic functionalities: \\insert(vector), search(threshold)
+    \begin{figure}[hp]
+       \includegraphics[width=0.60\textwidth]{../report/iris/Database_Approach.pdf}
+       \caption{Database handling for the iris storage.}
+     \label{fig:flow}
+   \end{figure} 
+\end{frame}
+
+\begin{frame}
+\frametitle{Iris Database} 
+Search functionality were implemented by calculating differences.\\
+These process is realized by calculating the differences of all vectors in the wholed database to the searched one.\\
+\[
+dist = \sqrt{\sum_{k=0}^{32}{(vector1[k]-vector2[k])}^2}
+\]
+By generating $n$ instances, it is possible to divide the matching time by $n$.\\
+This is possible since mongoDB use master slave replication.
+\end{frame}
 
 \section{Implementation} 
 \subsection{Program} 
