@@ -447,7 +447,11 @@ int get_iris_features(const char *path, float *feature_vect)
         fclose(file);
 
         free(iris_d);
+    }
+#endif
 
+#ifdef DEBUG
+    {
         uint8_t *gray_d = malloc(img_w * img_h);
         cudaMemcpy(gray_d, gm_gray, img_w * img_h, cudaMemcpyDeviceToHost);
 
